@@ -1,0 +1,12 @@
+allowBuilds:
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  # Preserve versions already present in the lockfile before the pnpm migration.
+  - '@types/node@22.20.3'
+  - fast-uri@3.1.8
+  - hono@4.13.8
+  - ip-address@10.7.2
+  - proxy-addr@2.0.8
+
+verifyDepsBeforeRun: error

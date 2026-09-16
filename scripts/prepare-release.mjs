@@ -1,0 +1,20 @@
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { basename, join } from 'node:path';
+import { pnpm, pack, root } from './package-lib.mjs';
+import { validateRelease } from './release-lib.mjs';
+
+if (process.argv.length > 3) throw new Error('Usage: pnpm run release:prepare [vVERSION]');
+const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+const tag = process.argv[2] ?? `v${manifest.version}`;
+const { notes } = validateRelease(manifest, await readFile(join(root, 'CHANGELOG.md'), 'utf8'), tag);
+pnpm(['install', '--frozen-lockfile'], { stdio: 'inherit' });
+pnpm(['run', 'check:public'], { stdio: 'inherit' });
+const directory = join(root, 'release', tag);
+await mkdir(directory, { recursive: true });
+const archive = pack(directory);
+const checksum = createHash('sha256').update(await readFile(archive)).digest('hex');
+await writeFile(join(directory, 'SHA256SUMS'), `${checksum}  ${basename(archive)}\n`);
+const url = `https://github.com/emmsixx/t3code-mcp/releases/download/${tag}/${basename(archive)}`;
+await writeFile(join(directory, 'release-notes.md'), `${notes}\n\n## Install\n\nRequires Node 22+ and pnpm on Linux or macOS.\n\n\`\`\`sh\npnpm add --global ${url}\nt3code-mcp login\n\`\`\`\n\n[Setup and agent instructions](https://github.com/emmsixx/t3code-mcp/blob/${tag}/docs/agent-setup.md) · [Verification and limitations](https://github.com/emmsixx/t3code-mcp/blob/${tag}/docs/verification.md)\n\nThe package includes compiled JavaScript. pnpm downloads its runtime dependencies during installation. SHA256SUMS covers the package archive.\n`);
+console.log(`Release prepared in release/${tag}. Run pnpm run test:package ${archive} before publishing.`);

@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # GitHub uses the npm ecosystem identifier for pnpm-lock.yaml too.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
