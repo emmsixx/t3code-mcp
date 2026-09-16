@@ -1,11 +1,11 @@
 import { z } from "zod";
-import type { threadSummary } from "./contracts.js";
+import type { ThreadSummary } from "./orchestration.js";
 
 export const threadStatus = z.enum([
   "working", "connecting", "awaiting_approval", "awaiting_input", "plan_ready", "monitoring",
-  "finished", "failed", "interrupted", "stopped", "idle", "unknown",
+  "finished", "failed", "interrupted", "stopped", "idle", "unknown", "preparing", "queued", "waiting", "cancelled", "rolled_back",
 ]);
-type Thread = z.infer<typeof threadSummary>;
+type Thread = ThreadSummary;
 const sessionStates = new Set(["idle", "starting", "running", "ready", "interrupted", "stopped", "error"]);
 const turnStates = new Set(["running", "interrupted", "completed", "error"]);
 
@@ -13,6 +13,21 @@ const turnStates = new Set(["running", "interrupted", "completed", "error"]);
 export function resolveThreadStatus(thread: Thread): z.infer<typeof threadStatus> {
   if (thread.hasPendingApprovals) return "awaiting_approval";
   if (thread.hasPendingUserInput) return "awaiting_input";
+  if (thread.runtime) {
+    const { status, activityRunStatus, pendingBackgroundTaskCount, pendingRequest } = thread.runtime;
+    const current = activityRunStatus ?? status;
+    if (pendingRequest) return "waiting";
+    if (current === "preparing") return "preparing";
+    if (current === "starting") return "connecting";
+    if (current === "running") return "working";
+    if (current === "waiting") return "waiting";
+    if (current === "queued") return "queued";
+    if (!["idle", "completed", "failed", "interrupted", "cancelled", "rolled_back"].includes(current)) return "unknown";
+    if (current === "failed") return "failed";
+    if (pendingBackgroundTaskCount > 0) return "waiting";
+    if (current === "completed") return thread.interactionMode === "plan" && thread.hasActionableProposedPlan ? "plan_ready" : "finished";
+    return current as "idle" | "interrupted" | "cancelled" | "rolled_back";
+  }
   const session = thread.session?.status;
   const turn = thread.latestTurn?.state;
   // A new active session can precede the latest-turn projection updating.

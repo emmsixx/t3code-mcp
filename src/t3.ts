@@ -6,9 +6,13 @@ import { Dpop } from "./dpop.js";
 import { BridgeError } from "./errors.js";
 import { form, Http, jsonBody } from "./http.js";
 import * as c from "./contracts.js";
+import type { Orchestration } from "./orchestration.js";
+import { V1Orchestration } from "./protocol-v1.js";
+import { V2Orchestration } from "./protocol-v2.js";
+import { unaryRpc } from "./rpc.js";
 
 type Token = { value: string; expiresAt: number };
-type EnvironmentSession = Token & { origin: string };
+type EnvironmentSession = Token & { origin: string; wsUrl: string };
 export interface TokenCache { identity?: string; relay?: Token; environments: Map<string, EnvironmentSession> }
 const grant = "urn:ietf:params:oauth:grant-type:token-exchange";
 const accessType = "urn:ietf:params:oauth:token-type:access_token";
@@ -17,6 +21,8 @@ const relayScopes = "environment:connect environment:status";
 export class T3Api {
   private relayPending?: Promise<string>;
   private environmentPending = new Map<string, Promise<EnvironmentSession>>();
+  // T3Api is created per bridge call: detect upgrades again on the next call.
+  private adapters = new Map<string, Promise<Orchestration>>();
   constructor(private config: Config, private http: Http, private auth: ClerkAuth, private signer: Dpop, private cache: TokenCache) {}
 
   async environments() {
@@ -94,7 +100,12 @@ export class T3Api {
         ...init, headers: { ...init.headers, dpop: this.signer.proof("POST", url) },
       });
       if (!["orchestration:read", "orchestration:operate"].every(s => data.scope.split(" ").includes(s))) throw new BridgeError("insufficient_scope", "The environment did not grant orchestration access.");
-      const session = { origin, value: data.access_token, expiresAt: started + data.expires_in * 1000 };
+      const ws = new URL(connection.endpoint.wsBaseUrl);
+      const wsOrigin = secureOrigin(ws.origin.replace(/^ws:/, "http:").replace(/^wss:/, "https:"));
+      if (wsOrigin !== origin || !["ws:", "wss:"].includes(ws.protocol) || ws.username || ws.password || ws.search || ws.hash || ws.pathname !== "/ws" || connection.endpoint.wsBaseUrl !== selected.endpoint.wsBaseUrl) {
+        throw new BridgeError("identity_mismatch", "The WebSocket endpoint does not match the selected environment.");
+      }
+      const session = { origin, wsUrl: ws.href, value: data.access_token, expiresAt: started + data.expires_in * 1000 };
       this.cache.environments.set(environmentId, session);
       return session;
     })().finally(() => { this.environmentPending.delete(environmentId); });
@@ -102,14 +113,15 @@ export class T3Api {
     return request;
   }
 
-  private async request<T>(environmentId: string, path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
+  private async request<T>(environmentId: string, path: string, schema: z.ZodType<T>, body?: unknown, protocol?: number): Promise<T> {
     const session = await this.environmentSession(environmentId);
     const url = `${session.origin}${path}`;
     const method = body === undefined ? "GET" : "POST";
     const init = body === undefined ? {} : jsonBody(body);
     try {
       return (await this.http.request(url, schema, {
-        ...init, headers: { ...init.headers, authorization: `DPoP ${session.value}`, dpop: this.signer.proof(method, url, session.value) },
+        ...init, headers: { ...init.headers, ...(protocol ? { "x-t3-orchestration-protocol": String(protocol) } : {}),
+          authorization: `DPoP ${session.value}`, dpop: this.signer.proof(method, url, session.value) },
       })).data;
     } catch (error) {
       if (error instanceof BridgeError && error.code === "auth_required") this.cache.environments.delete(environmentId);
@@ -117,12 +129,30 @@ export class T3Api {
     }
   }
 
-  shell(environmentId: string) { return this.request(environmentId, "/api/orchestration/shell", c.shell); }
-  thread(environmentId: string, threadId: string, turnLimit = 5, beforeCursor?: string) {
-    const query = new URLSearchParams({ turnLimit: String(turnLimit), ...(beforeCursor ? { beforeCursor } : {}) });
-    return this.request(environmentId, `/api/orchestration/threads/${encodeURIComponent(threadId)}?${query}`, c.threadDetail);
-  }
-  dispatch(environmentId: string, command: Record<string, unknown>) {
-    return this.request(environmentId, "/api/orchestration/dispatch", c.dispatchResult, command);
+  orchestration(environmentId: string): Promise<Orchestration> {
+    const existing = this.adapters.get(environmentId);
+    if (existing) return existing;
+    const pending = (async () => {
+      const descriptor = await this.request(environmentId, "/.well-known/t3/environment", z.object({
+        environmentId: c.id, orchestrationProtocolVersion: z.number().int().optional(),
+      }));
+      if (descriptor.environmentId !== environmentId) throw new BridgeError("identity_mismatch", "The descriptor names another environment.");
+      const version = descriptor.orchestrationProtocolVersion ?? 1;
+      if (version !== 1 && version !== 2) throw new BridgeError("unsupported_protocol", "This environment uses an unsupported orchestration protocol.", { environmentId, protocolVersion: version });
+      const transport = {
+        request: <T>(path: string, schema: z.ZodType<T>, body?: unknown) => this.request(environmentId, path, schema, body, version === 2 ? 2 : undefined),
+        rpc: async <T>(method: string, payload: Record<string, unknown>, schema: z.ZodType<T>) => {
+          const ticket = await this.request(environmentId, "/api/auth/websocket-ticket", z.object({ ticket: z.string().min(1) }), {});
+          const session = this.cache.environments.get(environmentId)!;
+          const url = new URL(session.wsUrl);
+          url.searchParams.set("wsTicket", ticket.ticket);
+          url.searchParams.set("orchestrationProtocol", "2");
+          return unaryRpc(url.href, method, payload, schema);
+        },
+      };
+      return version === 2 ? new V2Orchestration(transport) : new V1Orchestration(transport);
+    })();
+    this.adapters.set(environmentId, pending);
+    return pending;
   }
 }

@@ -31,7 +31,8 @@ To use your checkout, run `node dist/cli.js login` in your terminal, then config
 
 ## Layout
 
-- `src/auth.ts`, `src/dpop.ts`, `src/t3.ts`: authentication and T3 HTTP adapter.
+- `src/auth.ts`, `src/dpop.ts`, `src/t3.ts`: authentication, environment connection, and protocol selection.
+- `src/orchestration.ts`, `src/protocol-v1.ts`, `src/protocol-v2.ts`, `src/rpc.ts`: shared read views, version-specific orchestration adapters, and unary WebSocket transport.
 - `src/store.ts`, `src/bridge.ts`: private state, operation journal, and application behavior.
 - `src/server.ts`, `src/cli.ts`: MCP registration and terminal commands.
 - `test/`: fake-service and MCP integration tests.

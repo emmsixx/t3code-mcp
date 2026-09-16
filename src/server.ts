@@ -32,19 +32,19 @@ export function createServer(bridge: Bridge) {
     inputSchema: listThreadsInput.shape, annotations: read,
   }, input => result(() => bridge.listThreads(input)));
   server.registerTool("start_thread", {
-    description: "Create a thread and send instructions to its agent in the existing project workspace. May change files and incur provider charges. Defaults to approval-required. Worktree creation is not supported. Reuse operationId and identical arguments after ambiguous failures.",
+    description: "Create a thread and send instructions to its agent in the existing project workspace. May change files and incur provider charges; v2 also runs configured T3 setup scripts. Defaults to approval-required. Worktree creation is not supported. Reuse operationId and identical arguments after ambiguous failures.",
     inputSchema: startInput.shape, annotations: write,
   }, input => result(() => bridge.startThread(input)));
   server.registerTool("get_thread", {
     description: "Read bounded recent messages, activity, current status, provider errors and requests for human attention. Discover thread IDs with list_threads. Older turns can be paginated using beforeCursor. Reply to approvals and input in T3.",
-    inputSchema: { environmentId: id, threadId: id, turnLimit: z.number().int().min(1).max(20).default(5), beforeCursor: z.string().max(2000).optional() }, annotations: read,
+    inputSchema: { environmentId: id, threadId: id, turnLimit: z.number().int().min(1).max(20).default(5).describe("V1 history window. V2 uses T3's bounded page size; use beforeCursor for older history."), beforeCursor: z.string().max(2000).optional() }, annotations: read,
   }, input => result(() => bridge.getThread(input)));
   server.registerTool("send_message", {
-    description: "Send follow-up instructions using the thread's existing model and runtime modes. May change files or incur charges. Preserve operationId and arguments for retries.",
+    description: "Send follow-up instructions using the thread's existing model and runtime modes. V2 supports auto (default), queue, steer and restart delivery; omit mode on v1. May change files or incur charges. Preserve operationId and arguments for retries.",
     inputSchema: messageInput.shape, annotations: write,
   }, input => result(() => bridge.sendMessage(input)));
   server.registerTool("interrupt_thread", {
-    description: "Request interruption of the current or explicitly selected turn. The target turn is recorded so a retry cannot interrupt a later turn.",
+    description: "Request interruption of current work. V1 accepts turnId; v2 accepts runId from runtime.activeRunId. The selected target is recorded so a retry cannot interrupt later work.",
     inputSchema: interruptInput.shape, annotations: write,
   }, input => result(() => bridge.interruptThread(input)));
   return server;
