@@ -8,6 +8,7 @@ import { BridgeError, errorResult } from "./errors.js";
 import { Http } from "./http.js";
 import { Store, type State, type Operation } from "./store.js";
 import { T3Api, type TokenCache } from "./t3.js";
+import { lastActivityAt, threadAttention, threadStatus } from "./thread-status.js";
 
 const operationId = c.id.describe("Unique ID for this operation. Keep this ID and all arguments unchanged when retrying, including after a timeout.");
 export const startInput = z.object({
@@ -17,6 +18,10 @@ export const startInput = z.object({
 });
 export const messageInput = z.object({ operationId, environmentId: c.id, threadId: c.id, instructions: z.string().trim().min(1).max(100_000) });
 export const interruptInput = z.object({ operationId, environmentId: c.id, threadId: c.id, turnId: c.id.optional() });
+export const listThreadsInput = z.object({
+  environmentId: c.id, projectId: c.id.optional(), status: threadStatus.optional(),
+  offset: z.number().int().nonnegative().default(0), limit: z.number().int().min(1).max(50).default(20),
+});
 const clip = (text: string, limit: number) => text.length > limit ? `${text.slice(0, limit)}\n[truncated]` : text;
 function stable(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
@@ -30,7 +35,7 @@ export class Bridge {
 
   private run<T>(fn: (api: T3Api, state: State, save: () => Promise<void>) => Promise<T>) {
     return this.store.locked(async (state, save) => {
-      if (!state.auth?.sessionId) throw new BridgeError("login_required", "Run t3code-mcp login in your terminal first.");
+      if (!state.auth?.sessionId) throw new BridgeError("login_required", "Sign in with t3code-mcp login, or use login-start and login-verify for agent-guided setup.");
       if (state.auth.binding !== authBinding(this.config)) throw new BridgeError("config_mismatch", "Credentials belong to a different deployment. Use a separate state directory.");
       if (!state.privateJwk) { state.privateJwk = generateDpopKey(); await save(); }
       const signer = new Dpop(state.privateJwk);
@@ -66,17 +71,43 @@ export class Bridge {
     });
   }
 
+  listThreads(input: z.infer<typeof listThreadsInput>) {
+    return this.run(async api => {
+      const snapshot = await api.shell(input.environmentId);
+      if (input.projectId && !snapshot.projects.some(p => p.id === input.projectId)) {
+        throw new BridgeError("project_not_found", "This project does not exist on the selected environment.");
+      }
+      const all = snapshot.threads
+        .filter(t => !t.archivedAt && (!input.projectId || t.projectId === input.projectId))
+        .map(t => ({ thread: t, attention: threadAttention(t), lastActivityAt: lastActivityAt(t) }))
+        .filter(t => !input.status || t.attention.status === input.status)
+        .sort((a, b) => (b.lastActivityAt ? Date.parse(b.lastActivityAt) : -Infinity) - (a.lastActivityAt ? Date.parse(a.lastActivityAt) : -Infinity)
+          || (a.thread.id < b.thread.id ? -1 : a.thread.id > b.thread.id ? 1 : 0));
+      const page = all.slice(input.offset, input.offset + input.limit);
+      return {
+        environmentId: input.environmentId, scope: "unarchived", snapshotSequence: snapshot.snapshotSequence, observedAt: new Date().toISOString(),
+        threads: page.map(({ thread: t, attention, lastActivityAt }) => ({
+          threadId: t.id, projectId: t.projectId, title: clip(t.title, 200), ...attention,
+          session: t.session && { ...t.session, lastError: t.session.lastError && clip(t.session.lastError, 2000) }, latestTurn: t.latestTurn,
+          createdAt: t.createdAt ?? null, updatedAt: t.updatedAt ?? null, lastActivityAt,
+        })),
+        total: all.length, nextOffset: input.offset + page.length < all.length ? input.offset + page.length : null,
+      };
+    });
+  }
+
   getThread(input: { environmentId: string; threadId: string; turnLimit: number; beforeCursor?: string }) {
     return this.run(async api => {
       const detail = await api.thread(input.environmentId, input.threadId, input.turnLimit, input.beforeCursor);
       if (detail.thread.id !== input.threadId) throw new BridgeError("identity_mismatch", "The response names another thread.");
-      const summary = (await api.shell(input.environmentId)).threads.find(t => t.id === input.threadId);
+      const snapshot = await api.shell(input.environmentId);
+      const summary = snapshot.threads.find(t => t.id === input.threadId);
       const t = detail.thread;
+      const current = summary ?? t;
       return {
-        environmentId: input.environmentId, threadId: t.id, projectId: t.projectId, title: clip(t.title, 200),
-        session: t.session && { ...t.session, lastError: t.session.lastError && clip(t.session.lastError, 2000) }, latestTurn: t.latestTurn,
-        waitingForApproval: summary?.hasPendingApprovals ?? null, waitingForInput: summary?.hasPendingUserInput ?? null,
-        action: summary?.hasPendingApprovals || summary?.hasPendingUserInput ? "Respond in T3's existing client." : null,
+        environmentId: input.environmentId, threadId: t.id, projectId: current.projectId, title: clip(current.title, 200),
+        session: current.session && { ...current.session, lastError: current.session.lastError && clip(current.session.lastError, 2000) }, latestTurn: current.latestTurn,
+        ...threadAttention(summary), statusSnapshotSequence: summary ? snapshot.snapshotSequence : null,
         messages: t.messages.slice(-20).map(m => ({ ...m, text: clip(m.text, 3000) })),
         activities: t.activities.slice(-12).map(a => ({ ...a, summary: clip(a.summary, 500), payload: clip(JSON.stringify(a.payload) ?? "null", 1500) })),
         outputTruncated: t.messages.length > 20 || t.messages.some(m => m.text.length > 3000) || t.activities.length > 12 || t.activities.some(a => (JSON.stringify(a.payload)?.length ?? 0) > 1500 || a.summary.length > 500),

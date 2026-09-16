@@ -58,7 +58,7 @@ try {
     await client.connect(transport);
     assert.equal(client.getServerVersion()?.version, manifest.version);
     assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [
-      'get_thread', 'interrupt_thread', 'list_environments', 'list_projects', 'send_message', 'start_thread',
+      'get_thread', 'interrupt_thread', 'list_environments', 'list_projects', 'list_threads', 'send_message', 'start_thread',
     ]);
     const result = await client.callTool({ name: 'list_environments', arguments: {} });
     assert.equal(result.isError, true);
@@ -66,7 +66,7 @@ try {
     await client.close();
     client = undefined;
   }
-  console.log(`Package verified: ${packed.name}@${packed.version}, ${names.length} files; global install and pnpm dlx expose all six MCP tools.`);
+  console.log(`Package verified: ${packed.name}@${packed.version}, ${names.length} files; global install and pnpm dlx expose all seven MCP tools.`);
 } finally {
   try { await client?.close(); } finally { await rm(temporary, { recursive: true, force: true }); }
 }

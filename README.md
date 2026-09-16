@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/emmsixx/t3code-mcp)](https://github.com/emmsixx/t3code-mcp/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Give an external agent access to your T3 Code machines through MCP. Sign in to T3 Connect once, select a linked machine and project, and start a coding thread. Read its progress, send follow-ups, or interrupt its current turn.
+Give an external agent access to your T3 Code machines through MCP. Sign in to T3 Connect once, browse existing threads and their status, or start a coding thread on a linked machine and project. Read its progress, send follow-ups, or interrupt its current turn.
 
 Runs locally over stdio. Works with existing T3 installations—no fork or server changes required.
 
@@ -59,6 +59,8 @@ Merge the entry into your existing configuration, then restart or reconnect the 
 
 Try: **“List my T3 environments, then show the projects on the machine I choose.”**
 
+Or: **“Show me the threads on this machine that are working or need my input.”**
+
 ### Let an agent set it up
 
 Paste this into your agent:
@@ -73,12 +75,15 @@ The [agent setup guide](docs/agent-setup.md) covers installation, the resumable 
 | --- | --- |
 | `list_environments` | Discover account-linked machines; optionally check availability. |
 | `list_projects` | List projects and their configured model defaults on a machine. |
+| `list_threads` | Discover existing thread IDs, titles, and status; filter by project or status. |
 | `start_thread` | Create a thread and give its coding agent instructions. |
-| `get_thread` | Read bounded progress, responses, provider errors, and requests for input. |
+| `get_thread` | Read current status, bounded messages/activity, provider errors, and requests for input. |
 | `send_message` | Send follow-up instructions to an existing thread. |
 | `interrupt_thread` | Request interruption of a selected turn. |
 
 Launches use the project's existing workspace and can change files or incur provider usage. New threads default to `approval-required`; answer approvals and input requests in T3's own clients. Worktree creation and setup scripts are not supported yet.
+
+Thread statuses include `working`, `awaiting_input`, `awaiting_approval`, `finished`, and `failed`. Listing covers unarchived threads, including completed turns, with 20 results per page by default. `finished` means the latest turn completed; read its messages to assess the result. [All statuses and filters](docs/tools.md#thread-discovery-and-status).
 
 Use the environment/project IDs returned by the tools. Mutation tools require an `operationId`: preserve it **and the original arguments** when retrying an ambiguous result. An accepted command is not a completed task—check `get_thread`. [Tool inputs and retries](docs/tools.md)
 

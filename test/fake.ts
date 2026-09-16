@@ -13,12 +13,15 @@ export async function fakeT3() {
   const stateDir = await mkdtemp(join(tmpdir(), "t3-mcp-test-"));
   const model = { instanceId: "configured-provider", model: "configured-model", options: [{ id: "effort", value: "high" }] };
   const project = { id: "project-1", title: "Example", workspaceRoot: "/example", defaultModelSelection: model, defaultThreadEnvMode: "local" };
+  const projects = [project];
   const threads = new Map<string, any>();
+  const threadDetails = new Map<string, any>();
   const receipts = new Map<string, number>();
   const requests: { method: string; path: string; body: any }[] = [];
   const proofIds = new Set<string>();
   const flags = { dropCommand: "", rejectEnvironment: false, offline: false, tokenTtl: 3600, secondFactor: false, sessionExpired: false, mismatch: false, secondMachine: false,
-    corruptAuthResponse: "", unsupportedSecondFactor: false, signInExpired: false, signInMissing: false, rejectAccountToken: false };
+    corruptAuthResponse: "", unsupportedSecondFactor: false, signInExpired: false, signInMissing: false, rejectAccountToken: false,
+    shellSnapshotSequence: null as number | null };
   const validations: Error[] = [];
   let clientJwt = "", tokenCount = 0, origin = "", signInId = "sia_fake", sessionId = "sess_fake";
   const environmentTokens = new Map<string, string>();
@@ -140,10 +143,11 @@ export async function fakeT3() {
         const token = req.headers.authorization?.replace("DPoP ", "")!;
         assert.ok(environmentTokens.has(token)); proof(req, token, environmentTokens.get(token));
         if (flags.rejectEnvironment) { respond({ code: "auth_invalid", message: "SECRET" }, 401); return; }
-        if (path.endsWith("/shell")) { respond({ projects: [project], threads: [...threads.values()], snapshotSequence: sequence }); return; }
+        if (path.endsWith("/shell")) { respond({ projects, threads: [...threads.values()].filter(t => !t.archivedAt), snapshotSequence: flags.shellSnapshotSequence ?? sequence }); return; }
         if (path.includes("/threads/")) {
           assert.ok(Number(url.searchParams.get("turnLimit")) >= 1);
-          const thread = threads.get(decodeURIComponent(path.split("/").at(-1)!));
+          const threadId = decodeURIComponent(path.split("/").at(-1)!);
+          const thread = threadDetails.get(threadId) ?? threads.get(threadId);
           if (!thread) { respond({ code: "not_found" }, 404); return; }
           respond({ thread, snapshotSequence: sequence, page: { beforeCursor: "older", hasMore: true } }); return;
         }
@@ -192,5 +196,5 @@ export async function fakeT3() {
     assert.equal(status.status, "signed_in");
   };
   const close = async () => { server.closeAllConnections(); server.close(); await once(server, "close"); await rm(stateDir, { recursive: true, force: true }); assert.deepEqual(validations, []); };
-  return { bridge, config, login, close, flags, project, model, threads, requests, receipts, environmentTokens, relayTokens };
+  return { bridge, config, login, close, flags, project, projects, model, threads, threadDetails, requests, receipts, environmentTokens, relayTokens };
 }

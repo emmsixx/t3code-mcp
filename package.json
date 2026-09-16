@@ -1,6 +1,6 @@
 {
   "name": "t3code-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Standalone account-wide MCP bridge for T3 Code",
   "license": "MIT",
   "author": "emmsixx",

@@ -156,8 +156,8 @@ Restart or reconnect the MCP client. `serve` uses stdin/stdout for MCP; it does 
 ## 5. Verify and report
 
 - Confirm the installed version and executable path.
-- Confirm MCP tool discovery exposes all six tools named in the README.
-- Call `list_environments` (read-only). Optionally read projects on a user-selected environment.
+- Confirm MCP tool discovery exposes all seven tools named in the README.
+- Call `list_environments` (read-only). Optionally read projects and `list_threads` on a user-selected environment. Use a returned thread ID with `get_thread` when the user wants its conversation.
 - Report the configuration location and whether discovery succeeded. Do not report tokens or publish the state directory.
 
 If the agent cannot inspect the current client's tools, verify `t3code-mcp environments` and ask the user to reconnect their client; distinguish that CLI check from a completed MCP check. Zero environments means the account is signed in but has no linked machines. `login_required` means the process is using missing/different state. See [configuration and recovery](configuration.md) for other errors.

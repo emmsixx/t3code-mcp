@@ -4,12 +4,52 @@
 | --- | --- |
 | `list_environments` | Account-linked machine IDs and labels; optionally check availability. Default page: 10, maximum: 20. |
 | `list_projects` | Projects and configured model defaults for one environment. Default page: 20, maximum: 50. |
+| `list_threads` | Unarchived thread IDs, titles, status, attention flags, and turn timing. Optional `projectId` and `status` filters. Default page: 20, maximum: 50. |
 | `start_thread` | Create a thread, then submit the first instructions. Requires environment, project, title, instructions, and a unique `operationId`. |
-| `get_thread` | Bounded recent messages/activity, provider errors, and current approval/input flags. Supports turn pagination. |
+| `get_thread` | Current status, bounded recent messages/activity, provider errors, and approval/input flags. Supports turn pagination. |
 | `send_message` | Send follow-up instructions, preserving the thread's model and runtime modes. Requires `operationId`. |
 | `interrupt_thread` | Request interruption; records the target turn so retries cannot interrupt a later one. Requires `operationId`. |
 
 Start by listing environments, then projects on the selected machine. Use IDs returned by those tools; project names are not unique across machines.
+
+## Thread discovery and status
+
+Use `list_threads` to find existing tasks before calling `get_thread`. A project filter is optional: omit it to list threads across the selected machine's projects. For example, to find tasks waiting for a reply:
+
+```json
+{
+  "environmentId": "ID_FROM_LIST_ENVIRONMENTS",
+  "status": "awaiting_input",
+  "limit": 20
+}
+```
+
+Each row includes `threadId`, `projectId`, `title`, `status`, the underlying `session` and `latestTurn`, approval/input flags, and available timestamps. Call `get_thread` with the same `environmentId` and a returned `threadId` to read the conversation. Listing does not fetch messages or launch work.
+
+| Status | Meaning |
+| --- | --- |
+| `working` | The session/turn is running, or T3 reports live background work. |
+| `connecting` | The provider session is starting. |
+| `awaiting_approval` | T3 has a pending approval request. |
+| `awaiting_input` | T3 has a pending user-input request. |
+| `plan_ready` | A completed plan-mode turn has an actionable proposed plan. |
+| `monitoring` | T3 reports background watch loops as the remaining live work. |
+| `finished` | The latest turn completed with no higher-priority active or attention state. |
+| `failed` | The current session or latest turn reports an error. |
+| `interrupted` | The session/turn was interrupted and no live background work is reported. |
+| `stopped` | The session stopped without a completed latest turn or live background work. |
+| `idle` | No active work or completed latest turn is reported. |
+| `unknown` | An upstream state is unrecognized, or `get_thread` cannot find a current thread summary. |
+
+These are bridge-derived states based on T3's [thread/session contract](https://github.com/pingdotgg/t3code/blob/37a8ab2b29dfa33b4e20ad709a9860f0da7b7eb2/packages/contracts/src/orchestration.ts) and [sidebar status logic](https://github.com/pingdotgg/t3code/blob/37a8ab2b29dfa33b4e20ad709a9860f0da7b7eb2/apps/web/src/components/Sidebar.logic.ts). Approval takes priority over user input, and both take priority over running state. Both flags remain visible when both are pending. A newly running/starting session takes priority over an older turn's outcome. An old `lastError` on a ready session alone does not imply failure.
+
+`finished` describes the latest turn's lifecycle, not whether the user's whole task succeeded. T3's UI can also account for client-specific read markers; this bridge does not track those. Optional plan/background fields may be unavailable on older servers. Answer approvals, input requests, and proposed plans in T3's existing client.
+
+Results are sorted by the newest known activity timestamp, then thread ID. Filters apply before pagination; `total` counts matching threads and `nextOffset` identifies the next page. `scope: "unarchived"` makes the coverage explicit: archived threads are not discovered by this endpoint. An unknown project or unavailable environment produces an error, not an empty inventory.
+
+Every call reads a fresh snapshot. `observedAt` records when the list was obtained; `snapshotSequence` identifies its T3 projection. Threads can change state or move between pages while you paginate. `get_thread` uses one shell snapshot for status, session, turn, and attention flags; `statusSnapshotSequence` identifies that snapshot. Its message history can come from a separate, earlier `snapshotSequence`.
+
+## Starting a thread
 
 Example `start_thread` arguments:
 
@@ -37,4 +77,4 @@ Keep the same `operationId` **and identical arguments** for retries. The bridge 
 
 Tests cover responses lost after either launch command is accepted and recovery after restarting the bridge. This relies on T3 retaining its command receipts and the bridge retaining its journal. It is not a guarantee of exactly-once execution across database resets, lost journals, or future upstream changes. A new operation ID requests a new action.
 
-`get_thread` requests five recent turns by default (maximum 20), returns at most 20 messages and 12 activities, and clips long text with a visible marker. `page` describes older turn history; `outputTruncated` describes additional output clipping. Waiting flags are `null` when a thread is absent from the active shell snapshot, rather than implying no pending requests.
+`get_thread` requests five recent turns by default (maximum 20), returns at most 20 messages and 12 activities, and clips long text with a visible marker. `page` describes older turn history; `outputTruncated` describes additional output clipping. Waiting flags and `statusSnapshotSequence` are `null`, and `status` is `unknown`, when a thread is absent from the unarchived shell snapshot.

@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-16
+
+### Added
+
+- `list_threads` discovers existing unarchived thread IDs, titles, current status, attention flags, and turn timing. Supports project/status filters and bounded pages ordered by recent activity.
+- Shared thread statuses for working, connecting, awaiting approval/input, ready plans, monitoring, finished, failed, interrupted, stopped, idle, and unknown states.
+
+### Changed
+
+- `get_thread` now returns the same derived status as thread listing and uses one current snapshot for session, turn, and attention flags, with its snapshot sequence exposed separately from message history.
+- Setup instructions and package verification now cover seven MCP tools. Upgrade and restart/reconnect the MCP client to discover `list_threads`.
+
 ## [0.2.0] - 2026-09-16
 
 ### Added
