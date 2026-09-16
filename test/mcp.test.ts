@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fakeT3 } from "./fake.js";
+import { fakeV2 } from "./fake-v2.js";
 
 test("built CLI speaks MCP over stdio and exposes all seven tools with validated inputs", async t => {
   const f = await fakeT3(); t.after(f.close); await f.login();
@@ -49,4 +50,31 @@ test("MCP starts without credentials and returns an actionable login error", asy
   const result = await client.callTool({ name: "list_environments", arguments: {} });
   assert.equal(result.isError, true);
   assert.match(JSON.stringify(result.content), /login_required/);
+});
+
+test("built MCP tools launch, read, queue and interrupt through the v2 RPC transport", async t => {
+  const f = await fakeV2(); t.after(f.close); await f.login();
+  const transport = new StdioClientTransport({ command: process.execPath, args: [resolve("dist/cli.js"), "serve"], stderr: "pipe",
+    env: { T3_MCP_STATE_DIR: f.config.stateDir, T3_MCP_CLERK_ORIGIN: f.config.clerkOrigin, T3_MCP_RELAY_ORIGIN: f.config.relayOrigin } });
+  let stderr = ""; transport.stderr?.on("data", chunk => { stderr += chunk; });
+  const client = new Client({ name: "v2-test", version: "1.0.0" });
+  t.after(() => client.close()); await client.connect(transport);
+  const call = async (name: string, args: Record<string, unknown>) => {
+    const result = await client.callTool({ name, arguments: { environmentId: "env-1", ...args } });
+    assert.equal(result.isError, undefined, JSON.stringify(result.content));
+    return result.structuredContent as any;
+  };
+  assert.equal((await client.listTools()).tools.length, 7);
+  await call("list_projects", {});
+  const launched = await call("start_thread", { operationId: "mcp-v2", projectId: "project-1", title: "V2 task", instructions: "Test instructions" });
+  assert.equal(launched.protocolVersion, 2);
+  const { threadId } = launched;
+  const listed = await call("list_threads", {});
+  assert.equal(listed.threads[0].threadId, threadId);
+  const detail = await call("get_thread", { threadId });
+  assert.equal(detail.runtime.activeRunId, launched.results[0].runId);
+  assert.equal(detail.messages[0].text, "Test instructions");
+  await call("send_message", { operationId: "mcp-queue", threadId, mode: "queue", instructions: "Next task" });
+  await call("interrupt_thread", { operationId: "mcp-interrupt", threadId, runId: detail.runtime.activeRunId });
+  assert.equal(stderr, "");
 });

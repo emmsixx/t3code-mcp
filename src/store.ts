@@ -16,9 +16,11 @@ const operationSchema = z.object({
   fingerprint: z.string(), environmentId: z.string(), threadId: z.string(),
   commands: z.array(z.record(z.string(), z.unknown())),
   accepted: z.number().int().nonnegative(), sequences: z.array(z.number()),
+  protocolVersion: z.union([z.literal(1), z.literal(2)]).optional(),
+  results: z.array(z.object({ sequence: z.number().optional(), runId: z.string().optional(), resumed: z.boolean().optional() })).optional(),
 });
 const stateSchema = z.object({
-  version: z.literal(1), auth: authSchema.optional(),
+  version: z.union([z.literal(1), z.literal(2)]), auth: authSchema.optional(),
   privateJwk: z.record(z.string(), z.string()).optional(),
   operations: z.record(z.string(), operationSchema),
 });

@@ -90,8 +90,9 @@ test("offline, expired/revoked sessions and scope boundaries do not expose crede
 test("token expiry reconnects without retaining a bootstrap credential", async t => {
   const f = await fakeT3(); t.after(f.close); await f.login(); f.flags.tokenTtl = 1;
   await f.bridge.listProjects({ environmentId: "env-1", offset: 0, limit: 10 });
+  const issued = f.environmentTokens.size;
   await f.bridge.listProjects({ environmentId: "env-1", offset: 0, limit: 10 });
-  assert.equal(f.environmentTokens.size, 2); assert.equal(f.relayTokens.size, 2);
+  assert.ok(f.environmentTokens.size > issued); assert.equal(f.relayTokens.size, f.environmentTokens.size);
   const persisted = await readFile(join(f.config.stateDir, "state.json"), "utf8");
   assert.ok(!persisted.includes("bootstrap-")); assert.ok(!persisted.includes("env-token-"));
 });

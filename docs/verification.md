@@ -2,6 +2,8 @@
 
 ## Tested T3 versions
 
+The v2 preparation branch follows upstream PR #2829 at `729c6ff9ac32a9e0a3d1e571705e72a94772ece3`. Fake-service tests use the real Effect RPC codec and cover lost replies, restart recovery, mixed protocols, projection/history reads, and interrupted-operation upgrade guards. **V2 has no live validation.** Keep its PR unmerged until v2 ships in nightly or stable and the [rollout checks](orchestration-v2.md#merge-gate) pass.
+
 The initial implementation follows T3 source commit `37a8ab2b29dfa33b4e20ad709a9860f0da7b7eb2` (September 15, 2026). Public production defaults and native sign-in support were checked on that date.
 
 Live validation used three linked environments across Linux x64 and macOS arm64, reporting:

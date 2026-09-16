@@ -13,7 +13,7 @@ try {
   if (process.argv.length > 3) throw new Error('Usage: pnpm run test:package [archive.tgz]');
   const archive = process.argv[2] ? resolve(process.argv[2]) : pack(temporary);
   const names = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n');
-  const allowed = /^package\/(?:package\.json|README\.md|LICENSE|NOTICE|CHANGELOG\.md|CONTRIBUTING\.md|SECURITY\.md|docs\/(?:agent-setup|configuration|tools|authentication|verification)\.md|dist\/[a-z][a-z0-9-]*\.(?:js|d\.ts))$/;
+  const allowed = /^package\/(?:package\.json|README\.md|LICENSE|NOTICE|CHANGELOG\.md|CONTRIBUTING\.md|SECURITY\.md|docs\/(?:agent-setup|configuration|tools|authentication|verification|orchestration-v2)\.md|dist\/[a-z][a-z0-9-]*\.(?:js|d\.ts))$/;
   for (const name of names) assert.match(name, allowed, `Unexpected package entry: ${name}`);
   for (const name of ['package.json', 'dist/cli.js', 'dist/server.js', 'dist/version.js', 'LICENSE', 'NOTICE', 'docs/agent-setup.md']) {
     assert.ok(names.includes(`package/${name}`), `Missing package entry: ${name}`);

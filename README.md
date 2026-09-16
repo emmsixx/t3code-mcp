@@ -10,6 +10,8 @@ Runs locally over stdio. Works with existing T3 installations—no fork or serve
 
 **Experimental, independent integration.** Account login, discovery, project reads, and a reply-only agent launch have been verified live. Upstream changes can affect compatibility. [Verification details](docs/verification.md) · [Authentication design](docs/authentication.md)
 
+This branch prepares support for **orchestration v2** alongside existing v1 environments. V2 support is based on an unreleased upstream PR and has automated coverage only. Keep this change unmerged until v2 ships in a T3 nightly or stable release and the [v2 rollout checks](docs/orchestration-v2.md#merge-gate) pass.
+
 ## Install
 
 You need **Node.js 22+ and [pnpm](https://pnpm.io/installation) on Linux or macOS**, a T3 Connect account, and at least one linked, reachable T3 environment. Providers and projects must already be configured in T3. Windows is not supported in this release because credential storage uses POSIX file permissions; use Linux/WSL instead.

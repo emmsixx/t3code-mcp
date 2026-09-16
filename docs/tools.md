@@ -1,5 +1,7 @@
 # Tools and retry behavior
 
+This branch supports v1 and the unreleased v2 protocol. The descriptions below retain v1 behavior; see [v2 tool behavior and rollout requirements](orchestration-v2.md#tool-behavior) for run IDs, delivery modes, bounded history, request capabilities, and journal cutover rules.
+
 | Tool | Behavior |
 | --- | --- |
 | `list_environments` | Account-linked machine IDs and labels; optionally check availability. Default page: 10, maximum: 20. |

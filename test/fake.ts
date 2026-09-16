@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createServer, type IncomingMessage } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createPublicKey, verify } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -9,7 +9,11 @@ import { Bridge } from "../src/bridge.js";
 import { ClerkAuth } from "../src/auth.js";
 import { hash } from "../src/dpop.js";
 
-export async function fakeT3() {
+export interface FakeHooks {
+  environment?: (context: { req: IncomingMessage; res: ServerResponse; url: URL; body: any; environmentId: string;
+    respond: (data: unknown, status?: number) => void }) => boolean;
+}
+export async function fakeT3(hooks: FakeHooks = {}) {
   const stateDir = await mkdtemp(join(tmpdir(), "t3-mcp-test-"));
   const model = { instanceId: "configured-provider", model: "configured-model", options: [{ id: "effort", value: "high" }] };
   const project = { id: "project-1", title: "Example", workspaceRoot: "/example", defaultModelSelection: model, defaultThreadEnvMode: "local" };
@@ -27,6 +31,9 @@ export async function fakeT3() {
   const environmentTokens = new Map<string, string>();
   const relayTokens = new Map<string, string>();
   const bootstraps = new Map<string, string>();
+  const bootstrapEnvironments = new Map<string, string>();
+  const tokenEnvironments = new Map<string, string>();
+  const protocols = new Map<string, number | undefined>();
   let sequence = 0;
   let signInStatus = "needs_first_factor";
   const accountJwt = `header.${Buffer.from(JSON.stringify({ sub: "user_fake" })).toString("base64url")}.signature`;
@@ -64,6 +71,10 @@ export async function fakeT3() {
       requests.push({ method: req.method!, path, body });
       const respond = (data: unknown, status = 200) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(data)); };
       const ep = { httpBaseUrl: origin, wsBaseUrl: origin.replace("http:", "ws:") + "/ws", providerKind: "t3_relay" };
+      if (path === "/.well-known/t3/environment") {
+        const environmentId = tokenEnvironments.get(req.headers.authorization?.replace("DPoP ", "")!) ?? "env-1";
+        respond({ environmentId, orchestrationProtocolVersion: protocols.get(environmentId) }); return;
+      }
       if (path.startsWith("/v1/client/sign_ins") || path.startsWith("/v1/client/sessions")) {
         assert.equal(url.searchParams.get("_is_native"), "1");
         if (path === "/v1/client/sign_ins" && req.headers.authorization === "") clientJwt = "";
@@ -129,6 +140,7 @@ export async function fakeT3() {
         if (path.endsWith("/status")) { respond({ environmentId, status: flags.offline ? "offline" : "online", checkedAt: "2026-09-15T00:00:00Z" }); return; }
         assert.equal(body.clientProofKeyThumbprint, thumbprint);
         const credential = `bootstrap-${bootstraps.size}`; bootstraps.set(credential, thumbprint);
+        bootstrapEnvironments.set(credential, environmentId!);
         respond({ environmentId, endpoint: ep, credential, expiresAt: "2026-09-15T00:00:00Z" }); return;
       }
       if (path === "/oauth/token") {
@@ -137,12 +149,14 @@ export async function fakeT3() {
         assert.equal(body.grant_type, "urn:ietf:params:oauth:grant-type:token-exchange");
         assert.equal(body.client_label, "T3 Code MCP");
         const token = `env-token-${environmentTokens.size}`; environmentTokens.set(token, bootstraps.get(body.subject_token)!);
+        tokenEnvironments.set(token, bootstrapEnvironments.get(body.subject_token)!);
         respond({ access_token: token, token_type: "DPoP", expires_in: flags.tokenTtl, scope: body.scope }); return;
       }
-      if (path.startsWith("/api/orchestration/")) {
+      if (path.startsWith("/api/orchestration/") || path === "/api/auth/websocket-ticket") {
         const token = req.headers.authorization?.replace("DPoP ", "")!;
         assert.ok(environmentTokens.has(token)); proof(req, token, environmentTokens.get(token));
         if (flags.rejectEnvironment) { respond({ code: "auth_invalid", message: "SECRET" }, 401); return; }
+        if (hooks.environment?.({ req, res, url, body, environmentId: tokenEnvironments.get(token)!, respond })) return;
         if (path.endsWith("/shell")) { respond({ projects, threads: [...threads.values()].filter(t => !t.archivedAt), snapshotSequence: flags.shellSnapshotSequence ?? sequence }); return; }
         if (path.includes("/threads/")) {
           assert.ok(Number(url.searchParams.get("turnLimit")) >= 1);
@@ -196,5 +210,5 @@ export async function fakeT3() {
     assert.equal(status.status, "signed_in");
   };
   const close = async () => { server.closeAllConnections(); server.close(); await once(server, "close"); await rm(stateDir, { recursive: true, force: true }); assert.deepEqual(validations, []); };
-  return { bridge, config, login, close, flags, project, projects, model, threads, threadDetails, requests, receipts, environmentTokens, relayTokens };
+  return { bridge, config, login, close, flags, project, projects, model, threads, threadDetails, requests, receipts, environmentTokens, relayTokens, protocols, server };
 }

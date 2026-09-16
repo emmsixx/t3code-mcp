@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Prepare orchestration v2 support with per-environment protocol detection, bounded projection/history reads, and authenticated WebSocket RPC launch, follow-up, and interruption. V1 environments remain supported. Pending release validation; do not merge until T3 ships v2 in nightly or stable.
+- Expose v2 runtime/run IDs, pending request response capabilities, and preparing, queued, waiting, cancelled, and rolled-back states. V2 follow-ups accept explicit auto, queue, steer, and restart delivery.
+- Preserve unfinished operations across bridge upgrades and reject replay when an environment changes orchestration protocol. The first v2 mutation upgrades the local journal to state format 2, which older bridge releases cannot read.
+
 ### Maintenance
 
 - Require Conventional Commits and passing CI for pull requests into `main`, with squash merging and conventional Dependabot messages.
