@@ -2,7 +2,7 @@
 
 ## Development
 
-Use Node 22+ and [pnpm](https://pnpm.io/installation) on Linux or macOS. The `packageManager` field pins pnpm for development and CI; keep `pnpm-lock.yaml` committed.
+Use Node 22.12+ and [pnpm](https://pnpm.io/installation) on Linux or macOS. The `packageManager` field pins pnpm for development and CI; keep `pnpm-lock.yaml` committed.
 
 ```sh
 git clone https://github.com/emmsixx/t3code-mcp.git
@@ -12,10 +12,11 @@ pnpm run build
 pnpm run check
 pnpm test
 pnpm run test:package
+pnpm run test:upgrade
 pnpm run check:public
 ```
 
-Tests use fake HTTP services and temporary credential directories. `test:package` installs a compiled tarball in an isolated pnpm home and requires registry access for dependencies. It does not use a real T3 account. Use `pnpm add` or `pnpm update` to change dependencies and include the updated lockfile in your pull request.
+Tests use fake HTTP services and temporary credential directories. `test:package` installs a compiled tarball in an isolated pnpm home. `test:upgrade` installs the previous stable GitHub release, saves a fake account login and unfinished operation, then upgrades with the README command and verifies both survive. These package checks require registry access; the upgrade check also downloads public GitHub release assets. No real T3 account or provider usage is required. Use `pnpm add` or `pnpm update` to change dependencies and include the updated lockfile in your pull request.
 
 To use your checkout, run `node dist/cli.js login` in your terminal, then configure your MCP client with `command: node` and `args: ["/absolute/path/to/t3code-mcp/dist/cli.js", "serve"]`. Rebuild after changing source files.
 
@@ -48,6 +49,24 @@ Examples:
 - `chore(release): prepare v0.3.0`
 
 Use `!` or a `BREAKING CHANGE:` footer for breaking changes.
+
+CI uses [commitlint](https://commitlint.js.org/) to validate every new commit and the PR title. Use a lowercase type and a concise description without a final period. Release, revert, and merge commits receive the same checks; Git's default merge and revert messages do not pass. Dependabot is configured to use `chore(deps)` or `chore(deps-dev)` prefixes.
+
+Check your last commit or all commits on your branch before pushing:
+
+```sh
+pnpm exec commitlint --last --verbose
+git fetch origin main
+pnpm exec commitlint --from origin/main --to HEAD --verbose
+```
+
+## Pull requests
+
+Make changes on a branch and open a pull request against `main`. All five required checks must pass: Conventional commits, plus Node 22 and 24 on Linux and macOS. Keep the branch up to date with `main` and resolve review conversations before merging. A second person's approval is optional.
+
+Use squash merging with the validated PR title as the commit subject. The repository disables merge commits and rebase merging. Direct pushes, force pushes, and deletion of `main` are blocked by its active [ruleset](https://github.com/emmsixx/t3code-mcp/rules).
+
+The ruleset's API configuration is recorded in [.github/rulesets/main.json](.github/rulesets/main.json). Editing that file does not apply settings automatically; a maintainer must update the GitHub ruleset too. Keep its required check names aligned with the CI workflow.
 
 ## Releases
 

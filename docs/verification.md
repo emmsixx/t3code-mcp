@@ -28,11 +28,15 @@ Run `pnpm test` for local fake-service tests of credential rotation, TOTP, DPoP 
 
 Run `pnpm run test:package` to create a tarball, check its contents, install it in a temporary pnpm home, and verify the installed binary's version, help, tool discovery, and unauthenticated error behavior. It also verifies MCP startup through `pnpm dlx`. No T3 account or provider usage is required. This check downloads runtime dependencies from the registry.
 
+Run `pnpm run test:upgrade` to verify an upgrade from the newest stable GitHub release with a lower version than the checkout. The check verifies the downloaded package's checksum, installs it in an isolated pnpm home, and signs in against the fake T3 service. It leaves an operation unfinished after a lost response, then upgrades through the explicit README command. A local HTTP server serves both package versions at the same URL to exercise pnpm's handling of a moving latest-release asset.
+
+After upgrading, the check requires the new CLI/MCP version and all seven tools, an unchanged saved login and proof key, and successful resumption of the original operation without creating a duplicate thread. It uses temporary state throughout. GitHub API access and public release downloads are required; an optional `GH_TOKEN` authenticates release discovery. To check an already-built archive, pass its path to `pnpm run test:upgrade`.
+
 Thread-discovery tests seed existing tasks in the fake service and verify IDs can be used to read their messages without launching work. They cover status precedence, completed versus idle sessions, plans/background work, unknown states, project/status filtering, pagination, text bounds, archived-thread visibility, and separate message/status snapshots. MCP and package checks require all seven tools.
 
 On September 15, 2026, type checks, all 17 tests, and the isolated global-install and dlx MCP checks passed on Linux x64 using pnpm `11.20.0` with Node `22.23.2` and `24.19.0`. Frozen installation was also verified to reject a stale dependency lock. The public-content check passed, and both GitHub Actions workflows passed actionlint `1.7.12`.
 
-GitHub Actions runs these checks on Node 22 and 24 on Linux and macOS. The [initial hosted CI run](https://github.com/emmsixx/t3code-mcp/actions/runs/35042881792) passed all four jobs, including global-install and dlx verification. Tagged releases run the same matrix and validate the release archive before publication.
+GitHub Actions runs these checks, including upgrade verification, on Node 22 and 24 on Linux and macOS. A separate job validates all new commit messages and PR titles using Conventional Commits. All five jobs are required before merging into `main`. The [initial hosted CI run](https://github.com/emmsixx/t3code-mcp/actions/runs/35042881792) passed the original four jobs, including global-install and dlx verification. Tagged releases run the same matrix and validate the release archive before publication.
 
 ## Remaining live validation
 
