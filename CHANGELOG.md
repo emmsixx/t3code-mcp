@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-16
+
+### Added
+
+- Agent-guided account login through `login-start`, `login-verify`, and `login-status`. Agents can ask for an email, verification code, and optional authenticator code directly in chat.
+- Resumable login across CLI processes, with structured JSON input/output, wrong-code recovery, expiry handling, and reconciliation after an unreadable verification response. Session tokens stay local.
+
+### Changed
+
+- The README setup prompt and agent guide now use chat-guided login by default.
+- Interactive `login` shares the resumable flow and releases its state lock while waiting for user input.
+- `logout` cancels pending login attempts and revokes a session if verification completed before its response was lost.
+
 ## [0.1.0] - 2026-09-15
 
 Initial experimental release.

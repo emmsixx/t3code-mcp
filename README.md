@@ -25,7 +25,7 @@ t3code-mcp environments
 
 Releases include compiled JavaScript; pnpm installs the runtime dependencies. For a specific version or its checksum, see [GitHub Releases](https://github.com/emmsixx/t3code-mcp/releases). The package is distributed through GitHub, not the npm registry.
 
-Run `login` in **your own interactive terminal**. Enter your T3 account email and its verification code there. Login codes never belong in MCP arguments or agent chat. The CLI supports email-code login and TOTP; SSO-only, passkey-only, and interactive CAPTCHA flows are not implemented.
+Run `login` for interactive terminal prompts, or [let your agent handle setup](#let-an-agent-set-it-up): it asks for your email, sends a verification code, and asks you to reply with it in chat. If your account uses an authenticator, it asks for that code next. The resulting account session stays local; the commands return login status without tokens. SSO-only, passkey-only, and interactive CAPTCHA flows are not implemented.
 
 If pnpm reports that its global bin directory is missing, run `pnpm setup` and reopen your terminal. You can also use [pnpm dlx](docs/agent-setup.md#without-a-global-install) without a global install.
 
@@ -55,7 +55,7 @@ mcp_servers:
     args: [serve]
 ```
 
-Merge the entry into your existing configuration, then restart or reconnect the client. Use the absolute path printed by `command -v t3code-mcp` if your client does not inherit your shell's PATH. The client must use the same OS user and `T3_MCP_STATE_DIR` as the terminal that completed login. [Hermes MCP reference](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp)
+Merge the entry into your existing configuration, then restart or reconnect the client. Use the absolute path printed by `command -v t3code-mcp` if your client does not inherit your shell's PATH. The client must use the same OS user and `T3_MCP_STATE_DIR` as the login commands. [Hermes MCP reference](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp)
 
 Try: **“List my T3 environments, then show the projects on the machine I choose.”**
 
@@ -63,9 +63,9 @@ Try: **“List my T3 environments, then show the projects on the machine I choos
 
 Paste this into your agent:
 
-> Install the latest stable release of https://github.com/emmsixx/t3code-mcp and configure it for my agent using docs/agent-setup.md. Preserve existing MCP settings, let me log in in my terminal, and verify the connection without launching a task.
+> Install the latest stable release of https://github.com/emmsixx/t3code-mcp using docs/agent-setup.md. Guide me through login by asking for my email and verification code in chat, configure MCP while preserving existing settings, and verify the connection without launching a task.
 
-The [agent setup guide](docs/agent-setup.md) covers release selection, client configuration, and verification.
+The [agent setup guide](docs/agent-setup.md) covers installation, the resumable `login-start` / `login-verify` / `login-status` commands, client configuration, and verification.
 
 ## Available tools
 

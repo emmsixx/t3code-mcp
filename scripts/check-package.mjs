@@ -44,6 +44,8 @@ try {
   const run = args => execFileSync(executable, args, { cwd: temporary, env, encoding: 'utf8', timeout: 15_000 });
   assert.equal(run(['--version']).trim(), manifest.version);
   assert.match(run(['--help']), /Sign in with an email code/);
+  assert.match(run(['--help']), /login-start/);
+  assert.deepEqual(JSON.parse(run(['login-status'])), { status: 'signed_out' });
 
   for (const launch of [
     { command: executable, args: ['serve'], env },

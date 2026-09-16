@@ -4,7 +4,14 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { BridgeError } from "./errors.js";
 
-const authSchema = z.object({ binding: z.string(), clientJwt: z.string(), sessionId: z.string().optional(), accountId: z.string().optional() });
+const pendingLoginSchema = z.object({
+  loginId: z.uuid(), signInId: z.string(), expiresAt: z.number(),
+  factor: z.enum(["preparing", "email_code", "totp"]),
+});
+const authSchema = z.object({
+  binding: z.string(), clientJwt: z.string(), sessionId: z.string().optional(), accountId: z.string().optional(),
+  pendingLogin: pendingLoginSchema.optional(),
+});
 const operationSchema = z.object({
   fingerprint: z.string(), environmentId: z.string(), threadId: z.string(),
   commands: z.array(z.record(z.string(), z.unknown())),

@@ -21,7 +21,7 @@ Clerk provides a native frontend API that owns a separate client session. Its na
 The bridge uses that mechanism directly, with its own state directory:
 
 1. `POST /v1/client/sign_ins` with the user's email; discover supported factors.
-2. Prepare `email_code` for the returned email-address ID; prompt in the user's terminal.
+2. Prepare `email_code` for the returned email-address ID; collect the code through agent-guided chat or interactive terminal prompts.
 3. Attempt the first factor, and TOTP if requested. Require `status: complete` and a created session ID. Retain the bridge's client JWT as it rotates, including on unsuccessful responses.
 4. `POST /v1/client/sessions/:sessionId/tokens/t3-relay` to obtain the JWT template used by T3. Reissue this JWT from the owned native client session as needed.
 5. `GET /v1/environments` with the Clerk JWT to discover the account's linked machines.
@@ -31,6 +31,12 @@ The bridge uses that mechanism directly, with its own state directory:
 9. Send authenticated HTTP orchestration requests directly to that environment, each with a fresh proof and access-token hash. Reconnect when the environment token expires. No pairing credentials are stored or required.
 
 The relay profile `t3-web` is intentionally visible in code and documentation. It does not provide a new MCP-specific client identity. No upstream app secret, browser token extraction, registration change, or relay deployment change is used. Whether T3 treats this as a supported external integration remains unestablished; the flow is experimental compatibility with existing public APIs.
+
+### Resumable CLI login
+
+`login-start` accepts an email through JSON stdin and persists a pending attempt before preparing the email code. `login-verify` accepts the attempt's local ID, factor, and code. `login-status` reloads the pending sign-in with `GET /v1/client/sign_ins/:id`, following Clerk's [SignIn resource](https://github.com/clerk/javascript/blob/main/packages/clerk-js/src/core/resources/SignIn.ts) and [resource reload implementation](https://github.com/clerk/javascript/blob/main/packages/clerk-js/src/core/resources/Base.ts). Verification also reloads before submitting, so a retry can recover an accepted code or a transition to TOTP without submitting the old code again.
+
+Only progress metadata and native credentials persist; the supplied email and codes do not. State locks cover each command's network requests, and are released while waiting for user input. A completed session is saved before requesting its T3 token, allowing a failed token request to be retried through `login-status`. Commands return only progress, never tokens. See [the agent setup guide](agent-setup.md#3-guide-the-user-through-login) for input formats and recovery.
 
 ## Public production checks performed
 

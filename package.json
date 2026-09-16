@@ -1,6 +1,6 @@
 {
   "name": "t3code-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Standalone account-wide MCP bridge for T3 Code",
   "license": "MIT",
   "author": "emmsixx",
@@ -9,14 +9,25 @@
     "url": "git+https://github.com/emmsixx/t3code-mcp.git"
   },
   "homepage": "https://github.com/emmsixx/t3code-mcp#readme",
-  "bugs": { "url": "https://github.com/emmsixx/t3code-mcp/issues" },
-  "keywords": ["mcp", "t3-code", "t3-connect", "coding-agent", "hermes"],
+  "bugs": {
+    "url": "https://github.com/emmsixx/t3code-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "t3-code",
+    "t3-connect",
+    "coding-agent",
+    "hermes"
+  ],
   "type": "module",
   "packageManager": "pnpm@11.20.0",
   "engines": {
     "node": ">=22"
   },
-  "os": ["linux", "darwin"],
+  "os": [
+    "linux",
+    "darwin"
+  ],
   "bin": {
     "t3code-mcp": "dist/cli.js"
   },

@@ -17,13 +17,15 @@ export async function fakeT3() {
   const receipts = new Map<string, number>();
   const requests: { method: string; path: string; body: any }[] = [];
   const proofIds = new Set<string>();
-  const flags = { dropCommand: "", rejectEnvironment: false, offline: false, tokenTtl: 3600, secondFactor: false, sessionExpired: false, mismatch: false, secondMachine: false };
+  const flags = { dropCommand: "", rejectEnvironment: false, offline: false, tokenTtl: 3600, secondFactor: false, sessionExpired: false, mismatch: false, secondMachine: false,
+    corruptAuthResponse: "", unsupportedSecondFactor: false, signInExpired: false, signInMissing: false, rejectAccountToken: false };
   const validations: Error[] = [];
   let clientJwt = "", tokenCount = 0, origin = "", signInId = "sia_fake", sessionId = "sess_fake";
   const environmentTokens = new Map<string, string>();
   const relayTokens = new Map<string, string>();
   const bootstraps = new Map<string, string>();
   let sequence = 0;
+  let signInStatus = "needs_first_factor";
   const accountJwt = `header.${Buffer.from(JSON.stringify({ sub: "user_fake" })).toString("base64url")}.signature`;
 
   function proof(req: IncomingMessage, expectedToken?: string, expectedThumbprint?: string) {
@@ -61,25 +63,46 @@ export async function fakeT3() {
       const ep = { httpBaseUrl: origin, wsBaseUrl: origin.replace("http:", "ws:") + "/ws", providerKind: "t3_relay" };
       if (path.startsWith("/v1/client/sign_ins") || path.startsWith("/v1/client/sessions")) {
         assert.equal(url.searchParams.get("_is_native"), "1");
+        if (path === "/v1/client/sign_ins" && req.headers.authorization === "") clientJwt = "";
         assert.equal(req.headers.authorization, clientJwt);
-        assert.match(req.headers["content-type"] ?? "", /application\/x-www-form-urlencoded/);
+        if (req.method === "POST") assert.match(req.headers["content-type"] ?? "", /application\/x-www-form-urlencoded/);
         if (flags.sessionExpired) { respond({ errors: [{ code: "session_expired", long_message: "SECRET" }] }, 401); return; }
         clientJwt = `native-client-${++tokenCount}`;
         res.setHeader("authorization", clientJwt);
         const base = { id: signInId, supported_first_factors: [{ strategy: "email_code", email_address_id: "email_1" }], created_session_id: null };
+        const attempt = () => ({ ...base, status: signInStatus,
+          supported_second_factors: [{ strategy: flags.unsupportedSecondFactor ? "phone_code" : "totp" }],
+          created_session_id: signInStatus === "complete" ? sessionId : null });
+        const respondAttempt = () => {
+          if (flags.corruptAuthResponse && path.endsWith(flags.corruptAuthResponse)) {
+            flags.corruptAuthResponse = ""; res.writeHead(200, { "content-type": "application/json" }); res.end("truncated response"); return;
+          }
+          respond({ response: attempt() });
+        };
         if (path === "/v1/client/sign_ins") {
           assert.equal(body.identifier, "person@example.test");
-          respond({ response: { ...base, status: "needs_first_factor" } }); return;
+          signInStatus = "needs_first_factor"; respondAttempt(); return;
         }
-        if (path.endsWith("/prepare_first_factor")) { assert.equal(body.email_address_id, "email_1"); respond({ response: { ...base, status: "needs_first_factor" } }); return; }
+        if (req.method === "GET" && path === `/v1/client/sign_ins/${signInId}`) {
+          if (flags.signInMissing) respond({ errors: [{ code: "resource_not_found" }] }, 404);
+          else respondAttempt();
+          return;
+        }
+        if (path.endsWith("/prepare_first_factor")) { assert.equal(body.email_address_id, "email_1"); respondAttempt(); return; }
         if (path.endsWith("/attempt_first_factor") || path.endsWith("/attempt_second_factor")) {
-          assert.equal(body.code, "123456");
+          if (flags.signInExpired) { respond({ errors: [{ code: "verification_expired", long_message: "SECRET" }] }, 422); return; }
+          if (body.code !== "123456") { respond({ errors: [{ code: "form_code_incorrect", long_message: `SECRET ${body.code}` }] }, 422); return; }
           if (flags.secondFactor && path.endsWith("/attempt_first_factor")) {
-            respond({ response: { ...base, status: "needs_second_factor", supported_second_factors: [{ strategy: "totp" }] } }); return;
+            assert.equal(body.strategy, "email_code"); signInStatus = "needs_second_factor"; respondAttempt(); return;
           }
-          respond({ response: { ...base, status: "complete", created_session_id: sessionId } }); return;
+          assert.equal(body.strategy, path.endsWith("/attempt_first_factor") ? "email_code" : "totp");
+          signInStatus = "complete"; respondAttempt(); return;
         }
-        if (path.endsWith("/tokens/t3-relay")) { respond({ jwt: accountJwt }); return; }
+        if (path.endsWith("/tokens/t3-relay")) {
+          if (flags.rejectAccountToken) respond({ errors: [{ code: "unavailable", long_message: "SECRET" }] }, 503);
+          else respond({ jwt: accountJwt });
+          return;
+        }
         if (path.endsWith("/end")) { respond({ response: { id: sessionId, status: "ended" } }); return; }
       }
       if (path === "/v1/environments") {
@@ -159,7 +182,15 @@ export async function fakeT3() {
   origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   const config = { stateDir, clerkOrigin: origin, relayOrigin: origin, jwtTemplate: "t3-relay" };
   const bridge = new Bridge(config);
-  const login = () => bridge.store.locked((state, save) => new ClerkAuth(config, bridge.http, state, save).login(async label => label.includes("email:") ? "person@example.test" : "123456"));
+  const login = async () => {
+    const auth = <T>(run: (client: ClerkAuth) => Promise<T>) => bridge.store.locked((state, save) => run(new ClerkAuth(config, bridge.http, state, save)));
+    let status = await auth(client => client.loginStart({ email: "person@example.test" }));
+    while (status.status === "code_required") {
+      const { loginId, factor } = status;
+      status = await auth(client => client.loginVerify({ loginId, factor, code: "123456" }));
+    }
+    assert.equal(status.status, "signed_in");
+  };
   const close = async () => { server.closeAllConnections(); server.close(); await once(server, "close"); await rm(stateDir, { recursive: true, force: true }); assert.deepEqual(validations, []); };
   return { bridge, config, login, close, flags, project, model, threads, requests, receipts, environmentTokens, relayTokens };
 }

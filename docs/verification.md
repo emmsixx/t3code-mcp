@@ -24,7 +24,7 @@ No provider error, pending approval/input, or tool activity was reported during 
 
 ## Automated checks
 
-Run `pnpm test` for local fake-service tests of credential rotation, TOTP, DPoP signatures, form/JSON wire formats, expiry/reconnection, lost launch responses, retries across restarts, operation conflicts, provider errors, input/approval flags, and output bounds. A subprocess test exercises the built CLI with the official MCP client over stdio.
+Run `pnpm test` for local fake-service tests of credential rotation, TOTP, DPoP signatures, form/JSON wire formats, expiry/reconnection, lost launch responses, retries across restarts, operation conflicts, provider errors, input/approval flags, and output bounds. Subprocess tests exercise agent-guided email/TOTP login across separate CLI invocations, wrong/expired codes, interrupted responses, cancellation, and the built CLI with the official MCP client over stdio.
 
 Run `pnpm run test:package` to create a tarball, check its contents, install it in a temporary pnpm home, and verify the installed binary's version, help, tool discovery, and unauthenticated error behavior. It also verifies MCP startup through `pnpm dlx`. No T3 account or provider usage is required. This check downloads runtime dependencies from the registry.
 
@@ -34,6 +34,6 @@ GitHub Actions runs these checks on Node 22 and 24 on Linux and macOS. The [init
 
 ## Remaining live validation
 
-Real editing tasks, follow-up/interruption operations, retries under real network failures, logout/re-login, TOTP, and eventual expiry/revocation have not been exercised against production. A single authorized smoke test does not authorize later jobs on a user's machines.
+The split agent-guided login commands and sign-in reconciliation are covered by fake-service tests; the live login above used the original interactive flow. Real editing tasks, follow-up/interruption operations, retries under real network failures, logout/re-login, TOTP, and eventual expiry/revocation have not been exercised against production. A single authorized smoke test does not authorize later jobs on a user's machines.
 
 Worktree/setup-script orchestration, additional sign-in methods, hosted HTTP MCP, and native Windows credential storage are not implemented.
