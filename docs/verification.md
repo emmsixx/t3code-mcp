@@ -30,7 +30,7 @@ Run `pnpm run test:package` to create a tarball, check its contents, install it 
 
 On September 15, 2026, type checks, all 17 tests, and the isolated global-install and dlx MCP checks passed on Linux x64 using pnpm `11.20.0` with Node `22.23.2` and `24.19.0`. Frozen installation was also verified to reject a stale dependency lock. The public-content check passed, and both GitHub Actions workflows passed actionlint `1.7.12`.
 
-GitHub Actions is configured to run the checks on Node 22 and 24 on Linux and macOS. The macOS jobs and remote release publication have not run yet; the local results do not establish that GitHub-hosted jobs have run.
+GitHub Actions runs these checks on Node 22 and 24 on Linux and macOS. The [initial hosted CI run](https://github.com/emmsixx/t3code-mcp/actions/runs/35042881792) passed all four jobs, including global-install and dlx verification. Tagged releases run the same matrix and validate the release archive before publication.
 
 ## Remaining live validation
 
