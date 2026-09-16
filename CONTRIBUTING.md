@@ -36,6 +36,19 @@ To use your checkout, run `node dist/cli.js login` in your terminal, then config
 - `test/`: fake-service and MCP integration tests.
 - `scripts/`: build, public-content checks, package validation, and release preparation.
 
+## Commit messages
+
+Always use Conventional Commits: `<type>[optional scope][!]: <description>`. Use the same format for PR titles that will become squash commit messages.
+
+Examples:
+
+- `feat: expose thread activity status`
+- `fix(auth): resume interrupted login`
+- `docs: clarify installation instructions`
+- `chore(release): prepare v0.3.0`
+
+Use `!` or a `BREAKING CHANGE:` footer for breaking changes.
+
 ## Releases
 
 Releases are published by GitHub Actions when a maintainer pushes a `v*` tag. CI tests Node 22 and 24 on Linux and macOS before publishing the compiled package, checksum, and changelog notes. Publishing uses GitHub's built-in token.
