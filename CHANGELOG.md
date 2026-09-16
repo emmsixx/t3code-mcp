@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Maintenance
+
+- Require Conventional Commits and passing CI for pull requests into `main`, with squash merging and conventional Dependabot messages.
+- Verify upgrades from the previous stable release on Linux and macOS, including saved account access, unfinished operations, and MCP tool discovery.
+- Document an explicit upgrade command and contribution checks.
+
 ## [0.3.0] - 2026-09-16
 
 ### Added

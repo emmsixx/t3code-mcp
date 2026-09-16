@@ -95,7 +95,13 @@ The bridge stores its own account credential, proof key, and operation journal i
 
 ## Upgrade or uninstall
 
-To upgrade, rerun the install command above and restart your MCP client. Installed releases do not auto-update. Review the [changelog](CHANGELOG.md) before upgrading. Use `t3code-mcp --version` to check the installed version.
+To upgrade, run:
+
+```sh
+pnpm add --global https://github.com/emmsixx/t3code-mcp/releases/latest/download/t3code-mcp.tgz
+```
+
+Restart your MCP client after upgrading. Installed releases do not auto-update. Review the [changelog](CHANGELOG.md) before upgrading. Use `t3code-mcp --version` to check the installed version.
 
 To uninstall:
 
