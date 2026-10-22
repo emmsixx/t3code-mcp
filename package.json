@@ -62,7 +62,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.3",
+    "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
     "@types/node": "^26.6.5",
     "tsx": "^4.23.15",
