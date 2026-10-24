@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { BridgeError } from "./errors.js";
 
@@ -17,12 +18,14 @@ export function secureOrigin(value: string): string {
 export interface Config { clerkOrigin: string; relayOrigin: string; jwtTemplate: string; stateDir: string }
 
 // Public deployment settings from app.t3.codes, verified 2026-09-15. No app secrets.
-export function readConfig(env = process.env): Config {
+export function readConfig(env = process.env, homeDir = homedir()): Config {
+  const current = resolve(homeDir, ".t3connect-mcp");
+  const legacy = resolve(homeDir, ".t3code-mcp");
   return {
     clerkOrigin: secureOrigin(env.T3_MCP_CLERK_ORIGIN ?? "https://clerk.t3.codes"),
     relayOrigin: secureOrigin(env.T3_MCP_RELAY_ORIGIN ?? "https://relay.t3.codes"),
     jwtTemplate: env.T3_MCP_JWT_TEMPLATE ?? "t3-relay",
-    stateDir: resolve(env.T3_MCP_STATE_DIR ?? resolve(homedir(), ".t3code-mcp")),
+    stateDir: resolve(env.T3_MCP_STATE_DIR ?? (existsSync(current) || !existsSync(legacy) ? current : legacy)),
   };
 }
 

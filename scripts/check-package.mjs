@@ -13,7 +13,7 @@ try {
   if (process.argv.length > 3) throw new Error('Usage: pnpm run test:package [archive.tgz]');
   const archive = process.argv[2] ? resolve(process.argv[2]) : pack(temporary);
   const names = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n');
-  const allowed = /^package\/(?:package\.json|README\.md|LICENSE|NOTICE|CHANGELOG\.md|CONTRIBUTING\.md|SECURITY\.md|docs\/(?:agent-setup|configuration|tools|authentication|verification)\.md|dist\/[a-z][a-z0-9-]*\.(?:js|d\.ts))$/;
+  const allowed = /^package\/(?:package\.json|README\.md|LICENSE|NOTICE|CHANGELOG\.md|CONTRIBUTING\.md|SECURITY\.md|docs\/(?:agent-setup|configuration|tools|authentication|verification|migration)\.md|dist\/[a-z][a-z0-9-]*\.(?:js|d\.ts))$/;
   for (const name of names) assert.match(name, allowed, `Unexpected package entry: ${name}`);
   for (const name of ['package.json', 'dist/cli.js', 'dist/server.js', 'dist/version.js', 'LICENSE', 'NOTICE', 'docs/agent-setup.md']) {
     assert.ok(names.includes(`package/${name}`), `Missing package entry: ${name}`);
@@ -21,7 +21,7 @@ try {
 
   const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   const packed = JSON.parse(execFileSync('tar', ['-xOzf', archive, 'package/package.json'], { encoding: 'utf8' }));
-  assert.equal(packed.name, 't3code-mcp');
+  assert.equal(packed.name, 't3connect-mcp');
   assert.equal(packed.version, manifest.version, 'Archive version must match this checkout.');
   assert.equal(packed.license, 'MIT');
   for (const hook of ['preinstall', 'install', 'postinstall', 'prepare']) {
@@ -36,7 +36,7 @@ try {
   assert.equal(pnpm(['bin', '--global'], installOptions).trim(), bin);
   assert.ok(pnpm(['root', '--global'], installOptions).trim().startsWith(`${temporary}/`));
   pnpm(['add', '--global', '--ignore-scripts', archive], installOptions);
-  const executable = join(bin, 't3code-mcp');
+  const executable = join(bin, 't3connect-mcp');
   const env = {
     PATH: `${dirname(process.execPath)}${delimiter}${process.env.PATH ?? ''}`,
     T3_MCP_STATE_DIR: join(temporary, 'state'),
@@ -49,7 +49,7 @@ try {
 
   for (const launch of [
     { command: executable, args: ['serve'], env },
-    { command: 'pnpm', args: [`--package=${archive}`, 'dlx', 't3code-mcp', 'serve'], env: { ...installEnv, ...env } },
+    { command: 'pnpm', args: [`--package=${archive}`, 'dlx', 't3connect-mcp', 'serve'], env: { ...installEnv, ...env } },
   ]) {
     const transport = new StdioClientTransport({ ...launch, cwd: temporary, stderr: 'pipe' });
     client = new Client({ name: 'installed-package-check', version: '1.0.0' });
@@ -58,7 +58,7 @@ try {
     await client.connect(transport);
     assert.equal(client.getServerVersion()?.version, manifest.version);
     assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(), [
-      'get_thread', 'interrupt_thread', 'list_environments', 'list_projects', 'list_threads', 'send_message', 'start_thread',
+      'call_tool', 'list_environments', 'list_tools',
     ]);
     const result = await client.callTool({ name: 'list_environments', arguments: {} });
     assert.equal(result.isError, true);
@@ -66,7 +66,7 @@ try {
     await client.close();
     client = undefined;
   }
-  console.log(`Package verified: ${packed.name}@${packed.version}, ${names.length} files; global install and pnpm dlx expose all seven MCP tools.`);
+  console.log(`Package verified: ${packed.name}@${packed.version}, ${names.length} files; global install and pnpm dlx expose all three gateway tools.`);
 } finally {
   try { await client?.close(); } finally { await rm(temporary, { recursive: true, force: true }); }
 }

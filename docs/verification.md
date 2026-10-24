@@ -1,45 +1,23 @@
 # Compatibility and verification
 
-## Tested T3 versions
+## Gateway status
 
-The initial implementation follows T3 source commit `37a8ab2b29dfa33b4e20ad709a9860f0da7b7eb2` (September 15, 2026). Public production defaults and native sign-in support were checked on that date.
+The gateway uses T3’s official outside-agent MCP/OAuth contracts from **v0.1.2**. **No live gateway OAuth approval or native tool round trip has been performed against a current T3 machine.** Automated tests use fake account/relay and MCP services; they do not prove production compatibility.
 
-Live validation used three linked environments across Linux x64 and macOS arm64, reporting:
+The September v0.3.0 bridge was live-checked against T3 `0.0.41` nightlies for account login, three-machine discovery, project reads, and one authorized reply-only task. That record predates this gateway and does not validate its OAuth flow. The unmerged direct v2 adapter was never live-validated.
 
-- `0.0.41-nightly.20260915.1752`
-- `0.0.41-nightly.20260915.1780`
+## Automated verification
 
-This is a record of tested versions, not a promise of compatibility with every T3 release. The integration depends on existing APIs and the `t3-web` public-client profile. See [authentication details](authentication.md).
+`pnpm run check`, `pnpm test`, and `pnpm run check:public` cover the account sign-in flow, bounded discovery, MCP stdio integration, official HTTP MCP routing, OAuth PKCE/state validation, explicit denial, approval persistence, endpoint/account binding, native permission errors, lost mutation responses, and result limits. Native schemas, arguments, result content, and metadata pass through without orchestration translation.
 
-## Live behavior verified
+`pnpm run test:package` builds and installs the exact archive globally in an isolated pnpm home and through `pnpm dlx`. It checks the renamed command/package and all three gateway tools without using real credentials.
 
-A single email-code login discovered all three machines. Subsequent checks reused the owned account session and verified:
+`pnpm run test:upgrade` installs the previous stable release, creates a fake saved login and ambiguous legacy operation, then installs the gateway through the documented moving release URL. It verifies the renamed command, preserved account/proof/journal state, three-tool discovery, and absence of automatic legacy mutation replay. It uses temporary state, real package archives, and public GitHub release downloads, not a real T3 account.
 
-- Relay-template JWT issuance, DPoP relay token exchange, and online status checks.
-- Environment bootstrap and authenticated project reads through a real stdio MCP client/server connection.
-- An explicitly authorized reply-only launch using `codex / gpt-6-astra`, approval-required mode, and an existing project workspace.
-- Provider startup, turn completion, and retrieval of the exact reply `T3 MCP smoke test passed.` through `get_thread`.
+CI requires Conventional Commits plus Node 22 and 24 on Linux and macOS. See [Contributing](../CONTRIBUTING.md).
 
-No provider error, pending approval/input, or tool activity was reported during the reply-only test. Machine names, account information, filesystem paths, and live environment/project/thread identifiers are omitted from the public record.
+## Remaining live checks
 
-## Automated checks
+On a user-selected machine, verify account discovery, browser approval at read-only access, tool listing, and one native read. Then, only for an explicitly authorized project/task, verify native launch, follow-up, interruption, permission ceilings, expiry/revocation, and behavior after a lost response. Do not infer these from fake-service tests or the old smoke test.
 
-Run `pnpm test` for local fake-service tests of credential rotation, TOTP, DPoP signatures, form/JSON wire formats, expiry/reconnection, lost launch responses, retries across restarts, operation conflicts, provider errors, input/approval flags, and output bounds. Subprocess tests exercise agent-guided email/TOTP login across separate CLI invocations, wrong/expired codes, interrupted responses, cancellation, and the built CLI with the official MCP client over stdio.
-
-Run `pnpm run test:package` to create a tarball, check its contents, install it in a temporary pnpm home, and verify the installed binary's version, help, tool discovery, and unauthenticated error behavior. It also verifies MCP startup through `pnpm dlx`. No T3 account or provider usage is required. This check downloads runtime dependencies from the registry.
-
-Run `pnpm run test:upgrade` to verify an upgrade from the newest stable GitHub release with a lower version than the checkout. The check verifies the downloaded package's checksum, installs it in an isolated pnpm home, and signs in against the fake T3 service. It leaves an operation unfinished after a lost response, then upgrades through the explicit README command. A local HTTP server serves both package versions at the same URL to exercise pnpm's handling of a moving latest-release asset.
-
-After upgrading, the check requires the new CLI/MCP version and all seven tools, an unchanged saved login and proof key, and successful resumption of the original operation without creating a duplicate thread. It uses temporary state throughout. GitHub API access and public release downloads are required; an optional `GH_TOKEN` authenticates release discovery. To check an already-built archive, pass its path to `pnpm run test:upgrade`.
-
-Thread-discovery tests seed existing tasks in the fake service and verify IDs can be used to read their messages without launching work. They cover status precedence, completed versus idle sessions, plans/background work, unknown states, project/status filtering, pagination, text bounds, archived-thread visibility, and separate message/status snapshots. MCP and package checks require all seven tools.
-
-On September 15, 2026, type checks, all 17 tests, and the isolated global-install and dlx MCP checks passed on Linux x64 using pnpm `11.20.0` with Node `22.23.2` and `24.19.0`. Frozen installation was also verified to reject a stale dependency lock. The public-content check passed, and both GitHub Actions workflows passed actionlint `1.7.12`.
-
-GitHub Actions runs these checks, including upgrade verification, on Node 22 and 24 on Linux and macOS. A separate job validates all new commit messages and PR titles using Conventional Commits. All five jobs are required before merging into `main`. The [initial hosted CI run](https://github.com/emmsixx/t3code-mcp/actions/runs/35042881792) passed the original four jobs, including global-install and dlx verification. Tagged releases run the same matrix and validate the release archive before publication.
-
-## Remaining live validation
-
-Thread listing/status derivation, the split agent-guided login commands, and sign-in reconciliation are covered by fake-service tests; the live check above predates those additions. Real editing tasks, follow-up/interruption operations, retries under real network failures, logout/re-login, TOTP, and eventual expiry/revocation have not been exercised against production. A single authorized smoke test does not authorize later jobs on a user's machines.
-
-Worktree/setup-script orchestration, additional sign-in methods, hosted HTTP MCP, and native Windows credential storage are not implemented.
+Other limits: Linux/macOS only; email-code/TOTP account sign-in; no hosted gateway endpoint; no interactive MCP elicitation, resource/prompt proxy, or provider-session identity. The account discovery integration still depends on T3’s existing public-client profile. [Authentication](authentication.md)

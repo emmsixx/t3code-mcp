@@ -4,6 +4,7 @@ dist/
 .env.*
 !.env.example
 .t3code-mcp/
+.t3connect-mcp/
 coverage/
 *.tgz
 .local/

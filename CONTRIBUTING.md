@@ -16,23 +16,26 @@ pnpm run test:upgrade
 pnpm run check:public
 ```
 
-Tests use fake HTTP services and temporary credential directories. `test:package` installs a compiled tarball in an isolated pnpm home. `test:upgrade` installs the previous stable GitHub release, saves a fake account login and unfinished operation, then upgrades with the README command and verifies both survive. These package checks require registry access; the upgrade check also downloads public GitHub release assets. No real T3 account or provider usage is required. Use `pnpm add` or `pnpm update` to change dependencies and include the updated lockfile in your pull request.
+Tests use fake HTTP services and temporary credential directories. `test:package` installs a compiled tarball in an isolated pnpm home. `test:upgrade` installs the previous stable GitHub release, saves a fake account login and unfinished legacy operation, then upgrades with the README command and verifies the renamed gateway preserves both without replay. These package checks require registry access; the upgrade check also downloads public GitHub release assets. No real T3 account or provider usage is required. Use `pnpm add` or `pnpm update` to change dependencies and include the updated lockfile in your pull request.
 
 To use your checkout, run `node dist/cli.js login` in your terminal, then configure your MCP client with `command: node` and `args: ["/absolute/path/to/t3code-mcp/dist/cli.js", "serve"]`. Rebuild after changing source files.
 
 ## Scope
 
+T3 Connect MCP (`t3connect-mcp`) is an account-wide discovery and routing gateway to T3’s official MCP servers. Keep native tool names/schemas, permissions and execution semantics upstream. Do not add direct orchestration HTTP/WebSocket adapters or recreate native project/thread tools. The account-discovery integration remains independent and experimental.
+
 - Keep this package independent of a T3 checkout or fork. Treat upstream source as a versioned protocol reference.
 - Keep auth/transport logic out of MCP tool handlers. Reserve stdout for the protocol when running `serve`.
-- Preserve command IDs and payloads across retries; test ambiguous outcomes before changing mutation behavior.
+- Forward native arguments unchanged. Never replay ambiguous mutations or translate retained legacy command journals; test lost responses before changing routing behavior.
 - Do not run tests against a developer's real state directory. A real agent launch requires an explicit machine, project, and authorized task.
 - Never commit credentials, verification codes, personal environment/thread IDs, raw live transcripts, or local handoffs. Keep local investigation material under ignored `.local/`.
 - Explain the user-visible change, protocol assumptions, and validation in your pull request. Include an upstream source link for changes in wire contracts.
 
 ## Layout
 
-- `src/auth.ts`, `src/dpop.ts`, `src/t3.ts`: authentication and T3 HTTP adapter.
-- `src/store.ts`, `src/bridge.ts`: private state, operation journal, and application behavior.
+- `src/auth.ts`, `src/dpop.ts`, `src/t3.ts`: account authentication and relay discovery/status.
+- `src/store.ts`, `src/bridge.ts`: private state, retained legacy journals, and account-wide routing.
+- `src/native-mcp.ts`: official MCP client, endpoint-bound OAuth approval, and forwarding.
 - `src/server.ts`, `src/cli.ts`: MCP registration and terminal commands.
 - `test/`: fake-service and MCP integration tests.
 - `scripts/`: build, public-content checks, package validation, and release preparation.
@@ -79,7 +82,7 @@ Releases are published by GitHub Actions when a maintainer pushes a `v*` tag. CI
    ```sh
    pnpm run release:prepare
    release_tag="v$(node -p "require('./package.json').version")"
-   pnpm run test:package "release/$release_tag/t3code-mcp.tgz"
+   pnpm run test:package "release/$release_tag/t3connect-mcp.tgz"
    ```
 
 4. Review the generated notes and checksum in `release/$release_tag/`. Commit the version and changelog changes, merge them into `main`, and wait for CI to pass.
@@ -93,4 +96,4 @@ Releases are published by GitHub Actions when a maintainer pushes a `v*` tag. CI
 
 The workflow rejects mismatched versions, stale dependency locks, and missing changelog entries, tests the exact archive, and uploads assets to a draft before publishing. Hyphenated versions are marked as prereleases. If publication fails after creating a draft, inspect its assets before completing it or deleting the incomplete draft and rerunning the unchanged tag. Never move a published tag or replace published assets.
 
-Every release uses the asset name `t3code-mcp.tgz`; its tag and package metadata identify the version. This keeps the README's latest-release URL and agent prompt current without edits for each release. CLI output, MCP metadata, and the HTTP user-agent read the version from `package.json`.
+Every release uses the asset name `t3connect-mcp.tgz`; its tag and package metadata identify the version. Releases through v0.3.0 used `t3code-mcp.tgz`; do not rename published assets. This keeps the README's latest-release URL and agent prompt current without edits for each release. CLI output, MCP metadata, and the HTTP user-agent read the version from `package.json`.

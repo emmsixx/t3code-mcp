@@ -145,7 +145,7 @@ export class ClerkAuth {
 
   async token(): Promise<string> {
     const sessionId = this.state.auth?.sessionId;
-    if (!sessionId) throw new BridgeError("login_required", "Sign in with t3code-mcp login, or use login-start and login-verify for agent-guided setup.");
+    if (!sessionId) throw new BridgeError("login_required", "Sign in with t3connect-mcp login, or use login-start and login-verify for agent-guided setup.");
     const { jwt } = await this.request(`/v1/client/sessions/${encodeURIComponent(sessionId)}/tokens/${encodeURIComponent(this.config.jwtTemplate)}`,
       z.object({ jwt: z.string().min(1) }), {});
     // Identity is used to namespace local operations, never to authorize a request.
@@ -182,6 +182,7 @@ export class ClerkAuth {
     }
     delete this.state.auth;
     delete this.state.privateJwk;
+    delete this.state.connections;
     await this.save();
   }
 }

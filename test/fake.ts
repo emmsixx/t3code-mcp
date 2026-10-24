@@ -21,7 +21,7 @@ export async function fakeT3() {
   const proofIds = new Set<string>();
   const flags = { dropCommand: "", rejectEnvironment: false, offline: false, tokenTtl: 3600, secondFactor: false, sessionExpired: false, mismatch: false, secondMachine: false,
     corruptAuthResponse: "", unsupportedSecondFactor: false, signInExpired: false, signInMissing: false, rejectAccountToken: false,
-    shellSnapshotSequence: null as number | null };
+    shellSnapshotSequence: null as number | null, mcpOrigins: {} as Record<string, string> };
   const validations: Error[] = [];
   let clientJwt = "", tokenCount = 0, origin = "", signInId = "sia_fake", sessionId = "sess_fake";
   const environmentTokens = new Map<string, string>();
@@ -112,7 +112,7 @@ export async function fakeT3() {
         assert.equal(req.headers.authorization, `Bearer ${accountJwt}`);
         const environments = [{ environmentId: "env-1", label: "Test machine", endpoint: ep, linkedAt: "2026-09-15T00:00:00Z" }];
         if (flags.secondMachine) environments.push({ ...environments[0]!, environmentId: "env-2", label: "Second machine" });
-        respond({ environments }); return;
+        respond({ environments: environments.map(e => ({ ...e, endpoint: { ...e.endpoint, httpBaseUrl: flags.mcpOrigins[e.environmentId] ?? e.endpoint.httpBaseUrl } })) }); return;
       }
       if (path === "/v1/client/dpop-token") {
         assert.equal(body.subject_token, accountJwt);
