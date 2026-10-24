@@ -9,12 +9,14 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { fakeT3 } from '../test/fake.js';
+import { fakeNative } from '../test/fake-native.js';
 import { pack, root } from './package-lib.mjs';
 
 const repository = 'emmsixx/t3code-mcp';
 const temporary = await mkdtemp(join(tmpdir(), 't3code-mcp-upgrade-'));
 let fake: Awaited<ReturnType<typeof fakeT3>> | undefined;
 let client: Client | undefined;
+let native: Awaited<ReturnType<typeof fakeNative>> | undefined;
 let assets: ReturnType<typeof createServer> | undefined;
 
 async function download(url: string, authenticated = false): Promise<Buffer> {
@@ -67,12 +69,14 @@ try {
   const previousVersion: string = previous.tag_name.slice(1);
   assert.ok(compareVersions(previousVersion, '0.2.0') >= 0, 'The upgrade baseline must support JSON login commands.');
   const base = `https://github.com/${repository}/releases/download/${previous.tag_name}/`;
-  const [oldArchive, sums] = await Promise.all([download(`${base}t3code-mcp.tgz`), download(`${base}SHA256SUMS`)]);
-  const checksum = /^([a-f0-9]{64})\s+\*?t3code-mcp\.tgz\s*$/m.exec(sums.toString());
+  const oldAsset = previous.assets.find((a: any) => /^(t3code-mcp|t3connect-mcp)\.tgz$/.test(a.name));
+  assert.ok(oldAsset, 'The previous release has no supported package archive.');
+  const [oldArchive, sums] = await Promise.all([download(oldAsset.browser_download_url), download(`${base}SHA256SUMS`)]);
+  const checksum = /^([a-f0-9]{64})\s+\*?(?:t3code-mcp|t3connect-mcp)\.tgz\s*$/m.exec(sums.toString());
   assert.ok(checksum, 'The earlier release has no package checksum.');
   assert.equal(createHash('sha256').update(oldArchive).digest('hex'), checksum[1]);
   const oldManifest = JSON.parse(archiveFile(oldArchive, 'package.json'));
-  assert.equal(oldManifest.name, manifest.name); assert.equal(oldManifest.version, previousVersion);
+  assert.ok(['t3code-mcp', manifest.name].includes(oldManifest.name)); assert.equal(oldManifest.version, previousVersion);
   for (const hook of ['preinstall', 'install', 'postinstall', 'prepare']) assert.equal(oldManifest.scripts?.[hook], undefined);
   const archivePath = process.argv[2] ? resolve(process.argv[2]) : pack(temporary);
   const newArchive = await readFile(archivePath);
@@ -83,19 +87,19 @@ try {
   // Both pnpm installs use the same URL, so stale resolution/cache bugs are observable.
   let servedArchive = oldArchive;
   assets = createServer((req, res) => {
-    if (req.url !== '/releases/latest/download/t3code-mcp.tgz') { res.writeHead(404); res.end(); return; }
+    if (req.url !== '/releases/latest/download/t3connect-mcp.tgz') { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': servedArchive.length, 'cache-control': 'no-cache' });
     res.end(servedArchive);
   });
   assets.listen(0, '127.0.0.1'); await once(assets, 'listening');
-  const assetUrl = `http://127.0.0.1:${(assets.address() as { port: number }).port}/releases/latest/download/t3code-mcp.tgz`;
+  const assetUrl = `http://127.0.0.1:${(assets.address() as { port: number }).port}/releases/latest/download/t3connect-mcp.tgz`;
   const pnpmHome = join(temporary, 'pnpm'), bin = join(pnpmHome, 'bin');
   await mkdir(bin, { recursive: true });
   const installEnv = { ...process.env, PNPM_HOME: pnpmHome, PATH: `${dirname(process.execPath)}${delimiter}${bin}${delimiter}${process.env.PATH ?? ''}` };
   delete installEnv.GH_TOKEN; delete installEnv.GITHUB_TOKEN;
   assert.equal((await run('pnpm', ['bin', '--global'], installEnv)).trim(), bin);
   assert.ok((await run('pnpm', ['root', '--global'], installEnv)).trim().startsWith(`${temporary}/`));
-  const executable = join(bin, 't3code-mcp');
+  let executable = join(bin, Object.keys(oldManifest.bin)[0]!);
   fake = await fakeT3();
   const env = {
     PATH: installEnv.PATH, T3_MCP_STATE_DIR: fake.config.stateDir,
@@ -117,13 +121,20 @@ try {
   assert.deepEqual(await cli('login-verify', { loginId: login.loginId, factor: login.factor, code: '123456' }), { status: 'signed_in' });
   const beforeClient = await connect();
   assert.equal(beforeClient.getServerVersion()?.version, previousVersion);
-  const operation = { operationId: 'upgrade-retry', environmentId: 'env-1', projectId: 'project-1', title: 'Upgrade fixture', instructions: 'Reply with the fixture response.' };
-  fake.flags.dropCommand = 'thread.create';
-  const interrupted = await beforeClient.callTool({ name: 'start_thread', arguments: operation });
-  assert.equal(interrupted.isError, true);
-  assert.match(JSON.stringify(interrupted.content), /operation_incomplete/);
-  assert.equal(fake.threads.size, 1);
-  const threadId = [...fake.threads.keys()][0];
+  if ((await beforeClient.listTools()).tools.some(t => t.name === 'start_thread')) {
+    const operation = { operationId: 'upgrade-retry', environmentId: 'env-1', projectId: 'project-1', title: 'Upgrade fixture', instructions: 'Reply with the fixture response.' };
+    fake.flags.dropCommand = 'thread.create';
+    const interrupted = await beforeClient.callTool({ name: 'start_thread', arguments: operation });
+    assert.equal(interrupted.isError, true);
+    assert.match(JSON.stringify(interrupted.content), /operation_incomplete/);
+    assert.equal(fake.threads.size, 1);
+  } else {
+    await fake.bridge.store.locked(async (state, save) => {
+      state.operations.retained = { fingerprint: 'legacy', environmentId: 'env-1', threadId: 'old-thread', commands: [{ type: 'thread.create', commandId: 'original' }], accepted: 0, sequences: [] };
+      await save();
+    });
+  }
+  const acceptedBeforeUpgrade = fake.receipts.size;
   await beforeClient.close(); client = undefined;
   const statePath = join(fake.config.stateDir, 'state.json');
   const savedState = await readFile(statePath, 'utf8');
@@ -131,37 +142,43 @@ try {
   // Parse only the documented, allowlisted pnpm command; never execute Markdown as shell code.
   const readme = await readFile(join(root, 'README.md'), 'utf8');
   const upgradeSection = readme.split('## Upgrade or uninstall\n')[1]?.split('\n## ')[0];
-  const command = /^pnpm (add --global(?: --force)?) https:\/\/github\.com\/emmsixx\/t3code-mcp\/releases\/latest\/download\/t3code-mcp\.tgz$/m.exec(upgradeSection ?? '');
+  const command = /^pnpm (add --global(?: --force)?) https:\/\/github\.com\/emmsixx\/t3code-mcp\/releases\/latest\/download\/t3connect-mcp\.tgz$/m.exec(upgradeSection ?? '');
   assert.ok(command, 'Document an explicit pnpm upgrade command in README.md.');
   servedArchive = newArchive;
   await run('pnpm', [...command[1]!.split(' '), assetUrl], installEnv);
+  executable = join(bin, 't3connect-mcp');
   assert.equal((await run(executable, ['--version'], env)).trim(), manifest.version, 'The documented upgrade command left the previous version installed.');
   assert.equal(await readFile(statePath, 'utf8'), savedState, 'Installing an upgrade changed the saved login or journal.');
   assert.deepEqual(await cli('login-status'), { status: 'signed_in' });
   const afterClient = await connect();
   assert.equal(afterClient.getServerVersion()?.version, manifest.version);
   assert.deepEqual((await afterClient.listTools()).tools.map(t => t.name).sort(), [
-    'get_thread', 'interrupt_thread', 'list_environments', 'list_projects', 'list_threads', 'send_message', 'start_thread',
+    'call_tool', 'list_environments', 'list_tools',
   ]);
   const environments = await afterClient.callTool({ name: 'list_environments', arguments: {} });
   assert.equal(environments.isError, undefined);
-  const resumed = await afterClient.callTool({ name: 'start_thread', arguments: operation });
-  assert.equal(resumed.isError, undefined); assert.equal((resumed.structuredContent as any).threadId, threadId);
-  assert.equal(fake.threads.size, 1); assert.equal(fake.receipts.size, 2);
-  const listed = await afterClient.callTool({ name: 'list_threads', arguments: { environmentId: 'env-1' } });
-  assert.equal(listed.isError, undefined); assert.equal((listed.structuredContent as any).threads[0].threadId, threadId);
+  const needsApproval = await afterClient.callTool({ name: 'list_tools', arguments: { environmentId: 'env-1' } });
+  assert.equal(needsApproval.isError, true); assert.match(JSON.stringify(needsApproval.content), /mcp_login_required/);
+  native = await fakeNative();
+  fake.flags.mcpOrigins['env-1'] = native.origin;
+  await fake.bridge.connect('env-1', url => native!.approve(url).then(() => {}));
+  const nativeTools = await afterClient.callTool({ name: 'list_tools', arguments: { environmentId: 'env-1' } });
+  assert.equal(nativeTools.isError, undefined);
+  assert.equal((nativeTools.structuredContent as any).tools[0].name, 't3_project_list');
+  const read = await afterClient.callTool({ name: 'call_tool', arguments: { environmentId: 'env-1', name: 't3_project_list', arguments: {} } });
+  assert.equal(read.isError, undefined); assert.equal(native.launches, 0);
+  assert.equal(fake.receipts.size, acceptedBeforeUpgrade, 'The gateway replayed an old orchestration command.');
   assert.equal(fake.requests.filter(r => r.path === '/v1/client/sign_ins' && r.method === 'POST').length, 1);
   const finalState = JSON.parse(await readFile(statePath, 'utf8'));
   assert.equal(finalState.auth.sessionId, JSON.parse(savedState).auth.sessionId);
   assert.deepEqual(finalState.privateJwk, JSON.parse(savedState).privateJwk);
-  const originalOperation: any = Object.values(JSON.parse(savedState).operations)[0];
-  const resumedOperation: any = Object.values(finalState.operations)[0];
-  assert.deepEqual(resumedOperation.commands, originalOperation.commands);
-  console.log(`Upgrade verified: ${previousVersion} → ${manifest.version}; saved login, proof key, pending operation, and seven MCP tools verified.`);
+  assert.deepEqual(finalState.operations, JSON.parse(savedState).operations, 'The legacy journal changed during upgrade.');
+  assert.equal(finalState.version, 3);
+  console.log(`Upgrade verified: ${previousVersion} → ${manifest.version}; renamed command, saved login/proof/journal, native approval and three gateway tools verified without replay.`);
 } finally {
   try { await client?.close(); }
   finally {
-    try { await fake?.close(); }
+    try { await native?.close(); await fake?.close(); }
     finally {
       if (assets?.listening) { assets.closeAllConnections(); assets.close(); await once(assets, 'close'); }
       await rm(temporary, { recursive: true, force: true });

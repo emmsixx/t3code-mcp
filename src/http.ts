@@ -10,7 +10,7 @@ export class Http {
     try {
       const response = await this.fetcher(url, {
         ...init, redirect: "error", signal: AbortSignal.timeout(this.timeoutMs),
-        headers: { accept: "application/json", "user-agent": `t3code-mcp/${VERSION}`, ...init.headers },
+        headers: { accept: "application/json", "user-agent": `t3connect-mcp/${VERSION}`, ...init.headers },
       });
       // Native Clerk rotates client credentials in response headers, even on errors.
       if (onHeaders) await onHeaders(response.headers);
@@ -50,7 +50,7 @@ export class Http {
       return { data: parsed.data, headers: response.headers };
     } catch (error) {
       if (error instanceof BridgeError) throw error;
-      throw new BridgeError("transport_error", "The request failed or timed out. A submitted command may have been accepted; retry it with the same operationId.");
+      throw new BridgeError("transport_error", "The request failed or timed out. Check connection status before trying again.");
     }
   }
 }

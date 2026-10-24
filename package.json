@@ -1,7 +1,7 @@
 {
-  "name": "t3code-mcp",
-  "version": "0.3.0",
-  "description": "Standalone account-wide MCP bridge for T3 Code",
+  "name": "t3connect-mcp",
+  "version": "0.4.0",
+  "description": "Account-wide gateway to the official MCP servers on your T3 Connect machines",
   "license": "MIT",
   "author": "emmsixx",
   "repository": {
@@ -22,14 +22,14 @@
   "type": "module",
   "packageManager": "pnpm@11.20.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "os": [
     "linux",
     "darwin"
   ],
   "bin": {
-    "t3code-mcp": "dist/cli.js"
+    "t3connect-mcp": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -43,7 +43,8 @@
     "docs/configuration.md",
     "docs/tools.md",
     "docs/authentication.md",
-    "docs/verification.md"
+    "docs/verification.md",
+    "docs/migration.md"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",

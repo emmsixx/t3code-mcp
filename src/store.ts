@@ -16,11 +16,15 @@ const operationSchema = z.object({
   fingerprint: z.string(), environmentId: z.string(), threadId: z.string(),
   commands: z.array(z.record(z.string(), z.unknown())),
   accepted: z.number().int().nonnegative(), sequences: z.array(z.number()),
+}).passthrough(); // Preserve legacy v1/v2 journals for manual reconciliation; never replay them.
+const mcpConnection = z.object({
+  origin: z.string(), accessToken: z.string().min(1), expiresAt: z.number(), scope: z.string().optional(),
 });
 const stateSchema = z.object({
-  version: z.literal(1), auth: authSchema.optional(),
+  version: z.union([z.literal(1), z.literal(2), z.literal(3)]), auth: authSchema.optional(),
   privateJwk: z.record(z.string(), z.string()).optional(),
   operations: z.record(z.string(), operationSchema),
+  connections: z.record(z.string(), mcpConnection).optional(),
 });
 export type State = z.infer<typeof stateSchema>;
 export type Operation = z.infer<typeof operationSchema>;
@@ -43,7 +47,7 @@ export class Store {
       try { await mkdir(lock, { mode: 0o700 }); acquired = true; }
       catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-        throw new BridgeError("state_busy", "Another bridge operation owns the state lock. If a process crashed, stop it and remove the lock directory before retrying.");
+        throw new BridgeError("state_busy", "Another gateway operation owns the state lock. If a process crashed, stop it and remove the lock directory before retrying.");
       }
       const path = join(this.dir, "state.json");
       let state: State = { version: 1, operations: {} };
@@ -53,7 +57,7 @@ export class Store {
           throw new BridgeError("unsafe_state", "Credential state must be a regular file readable only by its owner (mode 0600).");
         }
         const decoded = stateSchema.safeParse(JSON.parse(await readFile(path, "utf8")));
-        if (!decoded.success) throw new BridgeError("invalid_state", "The bridge state file has an unsupported format.");
+        if (!decoded.success) throw new BridgeError("invalid_state", "The gateway state file has an unsupported format.");
         state = decoded.data;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;

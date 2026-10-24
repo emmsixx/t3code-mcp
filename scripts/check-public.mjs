@@ -8,7 +8,7 @@ import { root } from './package-lib.mjs';
 const files = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
   cwd: root, encoding: 'utf8',
 }).split('\0').filter(Boolean))];
-const forbidden = /(?:^|\/)(?:\.local|\.t3code-mcp|node_modules|dist|release|coverage)(?:\/|$)|(?:^|\/)(?:HANDOFF\.md|live-smoke-test\.json|state\.json|\.env(?:\..*)?)$|\.tgz$/i;
+const forbidden = /(?:^|\/)(?:\.local|\.t3code-mcp|\.t3connect-mcp|node_modules|dist|release|coverage)(?:\/|$)|(?:^|\/)(?:HANDOFF\.md|live-smoke-test\.json|state\.json|\.env(?:\..*)?)$|\.tgz$/i;
 const patterns = [
   ['private key', /-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----/],
   ['GitHub credential', /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})\b/],
@@ -35,7 +35,7 @@ for (const file of files) {
     catch { errors.push(`${file}: broken local link ${link}`); }
   }
 }
-for (const path of ['.local/probe', '.t3code-mcp/state.json', '.env', 'release/probe.tgz']) {
+for (const path of ['.local/probe', '.t3code-mcp/state.json', '.t3connect-mcp/state.json', '.env', 'release/probe.tgz']) {
   try { execFileSync('git', ['check-ignore', '--quiet', path], { cwd: root }); }
   catch { errors.push(`${path}: required ignore rule is missing`); }
 }

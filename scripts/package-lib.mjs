@@ -10,7 +10,7 @@ export function pnpm(args, options = {}) {
 
 export function pack(destination) {
   // A consistent asset name supports GitHub's /releases/latest/download URL.
-  const archive = resolve(destination, 't3code-mcp.tgz');
+  const archive = resolve(destination, 't3connect-mcp.tgz');
   pnpm(['pack', '--out', archive], { stdio: 'inherit' });
   return archive;
 }

@@ -23,7 +23,7 @@ async function cli(f: Fake, command: string, input?: unknown, expectedExit = 0, 
   for (const secret of ["person@example.test", "123456", "native-client-", "sess_fake", "sia_fake", ".signature", "SECRET"]) {
     assert.ok(!(stdout + stderr).includes(secret), `CLI output included ${secret}`);
   }
-  if (expectedExit === 0) assert.equal(stderr, command === "logout" ? "This bridge's account session has been cleared.\n" : "");
+  if (expectedExit === 0) assert.equal(stderr, command === "logout" ? "The gateway account session and local MCP approvals have been cleared.\n" : "");
   else assert.equal(stdout, "");
   return JSON.parse((expectedExit === 0 ? stdout : stderr) || "null");
 }

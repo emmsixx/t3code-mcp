@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Rename the package and CLI to `t3connect-mcp` (T3 Connect MCP). Existing GitHub repository links remain valid; the new release asset is `t3connect-mcp.tgz`.
+- Pivot to an account-wide gateway: retain machine discovery, add `list_tools` and `call_tool` for the official MCP on each machine, and remove the six custom project/thread tools and direct orchestration transport.
+- Require separate user-approved MCP OAuth access per machine. T3 enforces each grant; account discovery credentials never substitute for approval.
+- Preserve existing login and legacy journals without replay. Reuse the old state directory when appropriate; the first native approval writes format 3, preventing old releases from overwriting the new credentials.
+
+### Added
+
+- `connect <environmentId>` with browser approval, PKCE, state/issuer checks and a temporary loopback callback; `disconnect` forgets a local approval.
+- Forward native schemas, arguments, content, errors and metadata without maintaining an orchestration adapter. Bind approvals to account, machine and origin; do not replay ambiguous mutations.
+- Document the official direct-MCP alternative, migration, and remaining live-validation limits.
+
+
 ### Maintenance
 
 - Require Conventional Commits and passing CI for pull requests into `main`, with squash merging and conventional Dependabot messages.

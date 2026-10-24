@@ -37,7 +37,7 @@ jobs:
       - name: Test the exact release archive
         shell: bash
         run: |
-          pnpm run test:package "release/$GITHUB_REF_NAME/t3code-mcp.tgz"
+          pnpm run test:package "release/$GITHUB_REF_NAME/t3connect-mcp.tgz"
           cd "release/$GITHUB_REF_NAME"
           sha256sum --check SHA256SUMS
       - name: Create a draft with assets, then publish
@@ -51,9 +51,9 @@ jobs:
           prerelease=()
           if [[ "$version" == *-* ]]; then prerelease+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" \
-            "$directory/t3code-mcp.tgz" \
+            "$directory/t3connect-mcp.tgz" \
             "$directory/SHA256SUMS" \
             --verify-tag --draft "${prerelease[@]}" \
-            --title "T3 Code MCP $GITHUB_REF_NAME" \
+            --title "T3 Connect MCP $GITHUB_REF_NAME" \
             --notes-file "$directory/release-notes.md"
           gh release edit "$GITHUB_REF_NAME" --draft=false
